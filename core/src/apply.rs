@@ -1,7 +1,7 @@
 //! Applies a reviewed plan: re-checks each finding against the disk as it is now, acts, and
 //! journals how to undo it.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
@@ -24,9 +24,26 @@ pub enum Undo {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Entry {
-    Applied { batch: i64, time: i64, finding: Finding, undo: Vec<Undo> },
-    Failed { batch: i64, time: i64, finding: Finding, error: String },
-    Undone { batch: i64, time: i64 },
+    Applied {
+        batch: i64,
+        time: i64,
+        finding: Finding,
+        undo: Vec<Undo>,
+    },
+    Failed {
+        batch: i64,
+        time: i64,
+        finding: Finding,
+        error: String,
+    },
+    /// Findings put back from a batch. Journals from before per-finding undo have no ids,
+    /// meaning the whole batch.
+    Undone {
+        batch: i64,
+        time: i64,
+        #[serde(default)]
+        ids: Option<Vec<String>>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -250,44 +267,100 @@ pub struct Restored {
     pub error: Option<String>,
 }
 
-/// Reverses the most recent batch that hasn't been undone, newest action first.
+/// Reverses the most recent batch with findings still to put back, newest action first.
+/// Findings that couldn't be put back stay pending, so running it again retries them.
 /// `None` when there is nothing to undo.
 pub fn undo_last(journal: &Journal) -> io::Result<Option<Undone>> {
     let entries = journal.entries()?;
-    let undone: HashSet<i64> = entries
-        .iter()
-        .filter_map(|e| match e {
-            Entry::Undone { batch, .. } => Some(*batch),
-            _ => None,
-        })
-        .collect();
+    // Settled findings per batch; `None` settles a whole batch (older journals).
+    let mut settled: HashMap<i64, Option<HashSet<String>>> = HashMap::new();
+    for entry in &entries {
+        if let Entry::Undone { batch, ids, .. } = entry {
+            let slot = settled.entry(*batch).or_insert_with(|| Some(HashSet::new()));
+            match (slot.as_mut(), ids) {
+                (Some(set), Some(ids)) => set.extend(ids.iter().cloned()),
+                (_, None) => *slot = None,
+                (None, Some(_)) => {}
+            }
+        }
+    }
+    let pending = |batch: i64, id: &str| match settled.get(&batch) {
+        None => true,
+        Some(None) => false,
+        Some(Some(ids)) => !ids.contains(id),
+    };
     let Some(batch) = entries.iter().rev().find_map(|e| match e {
-        Entry::Applied { batch, undo, .. } if !undo.is_empty() && !undone.contains(batch) => Some(*batch),
+        Entry::Applied { batch, finding, undo, .. } if !undo.is_empty() && pending(*batch, &finding.id) => Some(*batch),
         _ => None,
     }) else {
         return Ok(None);
     };
 
     let mut restored = Vec::new();
-    for entry in entries.into_iter().rev() {
+    let mut ids = Vec::new();
+    for entry in entries.iter().rev() {
         let Entry::Applied { batch: b, finding, undo, .. } = entry else { continue };
-        if b != batch {
+        if *b != batch || undo.is_empty() || !pending(*b, &finding.id) {
             continue;
         }
-        let result = undo.iter().try_for_each(|step| match step {
-            Undo::MoveBack { from, to } => {
-                if to.exists() {
-                    return Err(format!("something is already at {}", to.display()));
-                }
-                fs::rename(from, to).map_err(|e| format!("moving {} back: {e}", from.display()))
+        let error = match undo.iter().try_for_each(put_back) {
+            Ok(()) => {
+                ids.push(finding.id.clone());
+                None
             }
-            Undo::Git { repo, args } => {
-                let args: Vec<&str> = args.iter().map(String::as_str).collect();
-                git(repo, &args).map(drop)
+            Err(Stuck::Retry(e)) => Some(e),
+            Err(Stuck::Gone(e)) => {
+                ids.push(finding.id.clone());
+                Some(e)
             }
-        });
-        restored.push(Restored { finding, error: result.err() });
+        };
+        restored.push(Restored { finding: finding.clone(), error });
     }
-    journal.append(&Entry::Undone { batch, time: crate::now() })?;
+    journal.append(&Entry::Undone { batch, time: crate::now(), ids: Some(ids) })?;
     Ok(Some(Undone { batch, restored }))
+}
+
+/// Why a step couldn't be put back: worth retrying later, or gone for good.
+enum Stuck {
+    Retry(String),
+    Gone(String),
+}
+
+/// Puts one step back. A step that's already back counts as done, so retries are safe.
+fn put_back(step: &Undo) -> Result<(), Stuck> {
+    match step {
+        Undo::MoveBack { from, to } => match fs::symlink_metadata(from) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                if fs::symlink_metadata(to).is_ok() {
+                    Ok(())
+                } else {
+                    Err(Stuck::Gone(format!("{} is no longer in the Trash", from.display())))
+                }
+            }
+            // macOS lets only the app that moved something to the Trash, or one with Full
+            // Disk Access, read it back.
+            Err(e) => Err(Stuck::Retry(format!(
+                "can't read {} ({e}); undo from the app that moved it, or give this one Full Disk Access",
+                from.display()
+            ))),
+            Ok(_) if fs::symlink_metadata(to).is_ok() => {
+                Err(Stuck::Retry(format!("something is already at {}", to.display())))
+            }
+            Ok(_) => fs::rename(from, to).map_err(|e| Stuck::Retry(format!("moving {} back: {e}", from.display()))),
+        },
+        Undo::Git { repo, args } => {
+            let args: Vec<&str> = args.iter().map(String::as_str).collect();
+            match git(repo, &args) {
+                Ok(_) => Ok(()),
+                Err(_) if branch_is_back(repo, &args) => Ok(()),
+                Err(e) => Err(Stuck::Retry(e)),
+            }
+        }
+    }
+}
+
+/// Whether `git branch <name> <sha>` has already happened.
+fn branch_is_back(repo: &Path, args: &[&str]) -> bool {
+    let ["branch", name, sha] = args else { return false };
+    git(repo, &["rev-parse", "--verify", "--quiet", &format!("refs/heads/{name}")]).is_ok_and(|s| s.trim() == *sha)
 }
