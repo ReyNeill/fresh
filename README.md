@@ -69,7 +69,7 @@ Open Anyway lets it through, and the DMG includes those steps. Fresh needs macOS
 Updates keep the same signature, so the Full Disk Access your friends grant carries over.
 Bump `CFBundleShortVersionString` in `app/Info.plist` for each release.
 
-The icon is drawn from `app/Icon.svg`: a square SVG with the art edge to edge, with no
+The icon is drawn from `app/Icon.svg`, else `app/Icon.png`: square art edge to edge, with no
 rounded corners, margins or shadow. The build applies the macOS shape, grid and sizes.
 
 ## Layout

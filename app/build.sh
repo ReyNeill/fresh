@@ -42,10 +42,14 @@ bundle="${FRESH_BUNDLE:-$app/build/Fresh.app}"
 rm -rf "$bundle" && mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 cp "$(swift build -c release --package-path "$app" "${swift_archs[@]}" --show-bin-path)/Fresh" "$bundle/Contents/MacOS/"
 cp "$app/Info.plist" "$bundle/Contents/"
-# The icon is drawn from a square, full-bleed SVG; without one, macOS shows its generic icon.
-if [ -f "$app/Icon.svg" ]; then
-  swift "$app/icon.swift" "$app/Icon.svg" "$bundle/Contents/Resources/AppIcon.icns"
-fi
+# The icon is drawn from square, full-bleed art (Icon.svg, else Icon.png); without either,
+# macOS shows its generic icon.
+for art in "$app/Icon.svg" "$app/Icon.png"; do
+  if [ -f "$art" ]; then
+    swift "$app/icon.swift" "$art" "$bundle/Contents/Resources/AppIcon.icns"
+    break
+  fi
+done
 
 # Sign with the most durable identity available. A Developer ID opens anywhere once notarized
 # (see notarize.sh). An Apple Development identity isn't trusted on other Macs, which ask once

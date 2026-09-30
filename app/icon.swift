@@ -1,13 +1,14 @@
-// Turns a square, full-bleed SVG into a macOS app icon: the art clipped to the standard
-// rounded square on the 1024 grid, with the system's soft drop shadow, at every size.
+// Turns square, full-bleed art (SVG, PNG, anything NSImage reads) into a macOS app icon: the
+// art clipped to the standard rounded square on the 1024 grid, with the system's soft drop
+// shadow, at every size.
 //
-//   swift app/icon.swift app/Icon.svg app/Generated/AppIcon.icns
+//   swift app/icon.swift app/Icon.png Fresh.app/Contents/Resources/AppIcon.icns
 import AppKit
 import SwiftUI
 
 let arguments = CommandLine.arguments
 guard arguments.count == 3, let art = NSImage(contentsOfFile: arguments[1]) else {
-    FileHandle.standardError.write(Data("usage: icon.swift <square.svg> <out.icns>\n".utf8))
+    FileHandle.standardError.write(Data("usage: icon.swift <square art> <out.icns>\n".utf8))
     exit(1)
 }
 let output = URL(filePath: arguments[2])
