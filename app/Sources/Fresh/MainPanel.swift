@@ -213,6 +213,9 @@ private struct FindingRow: View {
             Button("Reveal in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(filePath: finding.path)])
             }
+            if finding.rule == .cache {
+                Button("Exclude from Caches") { model.exclude(finding) }
+            }
         }
     }
 }

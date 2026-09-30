@@ -149,7 +149,9 @@ fn review(
     all: bool,
 ) -> Result {
     let scan = run_scan(path)?;
-    let opts = ReviewOptions { fetch, min_bytes: min, build_output_idle_days: idle, ..ReviewOptions::default() };
+    let excluded = fresh_core::settings::Settings::load()?.excluded;
+    let opts =
+        ReviewOptions { fetch, min_bytes: min, build_output_idle_days: idle, excluded, ..ReviewOptions::default() };
     let fresh_core::Review { findings, joints } = fresh_core::review(&scan, &opts);
     let plan = Plan { root: scan.root.clone(), created: opts.now, findings, joints };
 
@@ -158,6 +160,10 @@ fn review(
         return Ok(());
     }
     print_summary(&scan);
+    if !opts.excluded.is_empty() {
+        let excluded: Vec<String> = opts.excluded.iter().map(|p| tilde(p)).collect();
+        println!("{}", dim(&format!("Excluded in settings: {}", excluded.join(", "))));
+    }
     print_findings(&plan.findings, &plan.joints, all);
     if !fetch {
         println!(

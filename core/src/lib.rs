@@ -10,6 +10,7 @@ pub mod finding;
 mod git;
 mod rules;
 pub mod scan;
+pub mod settings;
 mod shared;
 mod sys;
 pub mod trash;
@@ -39,6 +40,8 @@ pub struct ReviewOptions {
     pub min_bytes: u64,
     /// Build output is only suggested once its project has been idle this many days.
     pub build_output_idle_days: u32,
+    /// Findings at or inside these paths are left out (`settings::Settings::excluded`).
+    pub excluded: Vec<PathBuf>,
 }
 
 impl Default for ReviewOptions {
@@ -52,6 +55,7 @@ impl Default for ReviewOptions {
             large_file_days: 180,
             min_bytes: 50 << 20,
             build_output_idle_days: 14,
+            excluded: Vec::new(),
         }
     }
 }
@@ -70,7 +74,8 @@ pub fn review(scan: &Scan, opts: &ReviewOptions) -> Review {
     let mut findings = rules::review(scan, opts, &mut claims);
     findings.extend(git::review(scan, &claims, opts.now, opts.fetch));
     findings.retain(|f| {
-        (f.rule.is_git() || f.size >= opts.min_bytes)
+        !opts.excluded.iter().any(|excluded| f.path.starts_with(excluded))
+            && (f.rule.is_git() || f.size >= opts.min_bytes)
             && (f.rule != Rule::BuildOutput || f.idle_days.is_none_or(|d| d >= opts.build_output_idle_days))
     });
     let joints = shared::resolve(&mut findings);

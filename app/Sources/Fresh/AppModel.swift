@@ -40,11 +40,55 @@ final class AppModel {
     private(set) var notice: Notice?
     /// A clean-up or undo is running.
     private(set) var busy = false
+    /// Paths reviews never suggest, listed in Settings.
+    private(set) var excluded: [String] = []
+    /// Why exclusions couldn't be read or saved, shown in Settings.
+    private(set) var settingsError: String?
 
     private let reviewer = Reviewer()
 
     init() {
         root = URL(filePath: UserDefaults.standard.string(forKey: "root") ?? homeFolder())
+        loadExcluded()
+    }
+
+    func loadExcluded() {
+        do {
+            excluded = try excludedPaths()
+            settingsError = nil
+        } catch {
+            settingsError = error.localizedDescription
+        }
+    }
+
+    /// Stops suggesting a finding, now and in every later review.
+    func exclude(_ finding: Finding) {
+        do {
+            try FreshCore.exclude(path: finding.path)
+            loadExcluded()
+            if let review {
+                phase = .reviewed(review.without([finding.id]))
+                selection.remove(finding.id)
+                forgetEmptyGroup()
+            }
+            notice = Notice(
+                message: "\(finding.title) won't be suggested again. Settings lists everything you've excluded.",
+                problems: [],
+                canUndo: false
+            )
+        } catch {
+            notice = Notice(message: error.localizedDescription, problems: [], canUndo: false)
+        }
+    }
+
+    /// Lets reviews suggest a path again, from the next scan.
+    func stopExcluding(_ path: String) {
+        do {
+            try FreshCore.stopExcluding(path: path)
+            loadExcluded()
+        } catch {
+            settingsError = error.localizedDescription
+        }
     }
 
     var review: Review? {
