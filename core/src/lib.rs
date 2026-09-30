@@ -10,6 +10,7 @@ pub mod finding;
 mod git;
 mod rules;
 pub mod scan;
+mod shared;
 mod sys;
 pub mod trash;
 pub mod treemap;
@@ -17,7 +18,7 @@ pub mod treemap;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub use finding::{Action, Finding, Plan, Rule, Safety};
+pub use finding::{Action, Finding, Joint, Plan, Rule, Safety, freed};
 pub use scan::{Scan, ScanOptions, scan};
 
 #[cfg(feature = "ffi")]
@@ -34,7 +35,7 @@ pub struct ReviewOptions {
     /// Files at least this large and this many days untouched are suggested.
     pub large_file: u64,
     pub large_file_days: u32,
-    /// Findings smaller than this are left out; git findings are kept regardless.
+    /// Findings taking up less than this are left out; git findings are kept regardless.
     pub min_bytes: u64,
     /// Build output is only suggested once its project has been idle this many days.
     pub build_output_idle_days: u32,
@@ -55,17 +56,26 @@ impl Default for ReviewOptions {
     }
 }
 
-/// Everything in the scan worth a look, grouped by rule and largest first.
-pub fn review(scan: &Scan, opts: &ReviewOptions) -> Vec<Finding> {
+/// What a review found, and the space some findings only free together.
+#[derive(Debug)]
+pub struct Review {
+    /// Grouped by rule, largest first.
+    pub findings: Vec<Finding>,
+    pub joints: Vec<Joint>,
+}
+
+/// Everything in the scan worth a look.
+pub fn review(scan: &Scan, opts: &ReviewOptions) -> Review {
     let mut claims = rules::Claims::new(scan);
     let mut findings = rules::review(scan, opts, &mut claims);
     findings.extend(git::review(scan, &claims, opts.now, opts.fetch));
     findings.retain(|f| {
-        (f.rule.is_git() || f.bytes >= opts.min_bytes)
+        (f.rule.is_git() || f.size >= opts.min_bytes)
             && (f.rule != Rule::BuildOutput || f.idle_days.is_none_or(|d| d >= opts.build_output_idle_days))
     });
-    findings.sort_by(|a, b| a.rule.cmp(&b.rule).then(b.bytes.cmp(&a.bytes)).then_with(|| a.detail.cmp(&b.detail)));
-    findings
+    let joints = shared::resolve(&mut findings);
+    findings.sort_by(|a, b| a.rule.cmp(&b.rule).then(b.size.cmp(&a.size)).then_with(|| a.detail.cmp(&b.detail)));
+    Review { findings, joints }
 }
 
 /// The user's home folder.

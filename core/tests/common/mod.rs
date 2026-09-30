@@ -33,6 +33,8 @@ pub struct Fixture {
 /// A repo whose remote's default branch is `prod` while work merges into `dev`, with:
 /// - worktree `wt-merged` on `feat-merged`: merged into dev, clean
 /// - worktree `wt-dirty` on `feat-dirty`: merged into dev, with an uncommitted edit
+/// - worktree `wt-detached`: detached on dev's tip, clean
+/// - worktree `wt-busy` on `feat-busy`: merged into dev and clean (tests run a process in it)
 /// - `feat-open`: unmerged, no worktree
 /// - `feat-gone`: pushed, then deleted on the remote
 /// - `origin/shipped`: merged into dev, authored by the repo's user, no local branch
@@ -60,6 +62,7 @@ pub fn fixture() -> Fixture {
     git(&repo, &["push", "-q", "origin", "dev", "shipped"]);
     git(&repo, &["branch", "-q", "-D", "shipped"]);
     git(&repo, &["branch", "-q", "feat-dirty", "dev"]);
+    git(&repo, &["branch", "-q", "feat-busy", "dev"]);
     git(&repo, &["switch", "-q", "-c", "feat-open", "dev"]);
     commit(&repo, "open");
     git(&repo, &["switch", "-q", "-c", "feat-gone", "dev"]);
@@ -69,6 +72,8 @@ pub fn fixture() -> Fixture {
     git(&repo, &["switch", "-q", "dev"]);
     git(&repo, &["worktree", "add", "-q", "../wt-merged", "feat-merged"]);
     git(&repo, &["worktree", "add", "-q", "../wt-dirty", "feat-dirty"]);
+    git(&repo, &["worktree", "add", "-q", "--detach", "../wt-detached", "dev"]);
+    git(&repo, &["worktree", "add", "-q", "../wt-busy", "feat-busy"]);
     fs::write(root.join("wt-dirty/README"), "edited").unwrap();
     Fixture { _dir: dir, root, repo }
 }

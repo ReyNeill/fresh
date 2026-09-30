@@ -44,7 +44,7 @@ struct Composer: View {
 
     private func count(_ selected: [Finding]) -> String {
         guard !selected.isEmpty else { return "" }
-        let bytes = outermost(selected).map(\.bytes).reduce(0, +)
+        let bytes = model.frees(selected)
         return bytes > 0 ? "\(selected.count) selected · \(bytes.formattedBytes)" : "\(selected.count) selected"
     }
 
@@ -53,7 +53,7 @@ struct Composer: View {
         var parts: [String] = []
         let trash = selected.filter(\.movesToTrash)
         if !trash.isEmpty {
-            let bytes = outermost(trash).map(\.bytes).reduce(0, +)
+            let bytes = model.frees(trash)
             parts.append("move \(plural(trash.count, "item", "items")) (\(bytes.formattedBytes)) to the Trash")
         }
         let local = selected.filter { if case .deleteBranch = $0.action { true } else { false } }.count

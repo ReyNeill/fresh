@@ -78,7 +78,7 @@ struct Sidebar: View {
     }
 
     private var total: String {
-        let bytes = outermost(model.review?.findings ?? []).map(\.bytes).reduce(0, +)
+        let bytes = model.frees(model.review?.findings ?? [])
         return bytes > 0 ? bytes.formattedBytes : ""
     }
 }

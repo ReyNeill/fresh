@@ -273,7 +273,7 @@ fn scan_dir(ctx: &Ctx, path: &Path, name: Box<str>, mtime: i64) -> DirTree {
     if ctx.skip.iter().any(|s| s == path) {
         return DirTree::unread(name, mtime);
     }
-    let listing = match sys::list_dir(path) {
+    let listing = match sys::list_dir(path, false) {
         Ok(listing) if listing.dev == ctx.root_dev => listing,
         _ => {
             ctx.unread.fetch_add(1, Ordering::Relaxed);

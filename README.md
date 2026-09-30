@@ -24,6 +24,12 @@ cargo build --release
 - `~/Library/Application Support/fresh/journal.jsonl` records every action and how to undo it.
 - Remote branch deletions need `--remote` and push with `--force-with-lease` against the
   reviewed commit. They're only suggested after `--fetch`, since stale tracking refs linger.
+- Sizes are honest about APFS clones and hard links. A finding's size is what it takes up;
+  what it frees is less when copies elsewhere share its data (Bun and uv clone their caches
+  into projects). Shared data only counts as freed when every copy is among what you clean
+  up together, and the totals say exactly that.
+- Worktrees a running process works in are never suggested, and detached checkouts (how
+  agents and bisects work) are only offered for review, never pre-selected.
 - Scans never download iCloud placeholders.
 - Without Full Disk Access, other apps' containers are skipped: each protected folder there
   stalls for seconds in the privacy daemon before being denied.
@@ -40,8 +46,14 @@ reversible, and cleans up after a confirmation. Its space map shows the whole fo
 treemap, colored by kind of data, with what can go hatched. Undo sits in the status chip after a
 clean-up and in the Fresh menu. The app and the CLI share one journal, but macOS lets only the
 process that moved something to the Trash, or one with Full Disk Access, move it back out.
-Give the app Full Disk Access to include other apps' data too; local builds are ad-hoc signed,
-so the grant has to be re-added after each rebuild.
+Give the app Full Disk Access to include other apps' data too.
+
+`build.sh` signs with the most durable identity in your keychain: a Developer ID if there is
+one, else an Apple Development identity, which keeps privacy grants like Full Disk Access
+across rebuilds; CI falls back to ad-hoc signing. To hand the app to other Macs, add a
+Developer ID Application certificate, store notary credentials once with
+`xcrun notarytool store-credentials fresh-notary`, then run `bun run notarize` after
+building.
 
 ## Layout
 

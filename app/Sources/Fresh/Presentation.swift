@@ -39,10 +39,13 @@ extension Finding {
         tilde(deletesBranch ? path : URL(filePath: path).deletingLastPathComponent().path)
     }
 
-    /// Why it's listed, and how long it's been untouched.
+    /// Why it's listed, what it shares with copies elsewhere, and how long it's been untouched.
     var reason: String {
-        guard let idleDays, idleDays > 0 else { return detail }
-        return "\(detail) · idle \(plural(Int(idleDays), "day", "days"))"
+        var parts = [detail]
+        let shared = size > bytes ? size - bytes : 0
+        if canApply, shared > size / 10 { parts.append("\(shared.formattedBytes) shared with copies") }
+        if let idleDays, idleDays > 0 { parts.append("idle \(plural(Int(idleDays), "day", "days"))") }
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -167,14 +170,4 @@ func tilde(_ path: String) -> String {
 /// A folder's display name: "Home" for the home folder, else its last component.
 func folderName(_ path: String) -> String {
     path == homeFolder() ? "Home" : URL(filePath: path).lastPathComponent
-}
-
-/// Findings that free space and aren't inside another one, so nested ones count once.
-func outermost(_ findings: [Finding]) -> [Finding] {
-    let freeing = findings.filter { $0.bytes > 0 && $0.canApply }.sorted { $0.path.count < $1.path.count }
-    var kept: [Finding] = []
-    for finding in freeing where !kept.contains(where: { finding.path.hasPrefix($0.path + "/") }) {
-        kept.append(finding)
-    }
-    return kept
 }

@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::apply::{self, Applied, Journal, Undone};
 use crate::treemap::{Atlas, SpaceMap};
-use crate::{Finding, ReviewOptions, Scan, ScanOptions};
+use crate::{Finding, Joint, ReviewOptions, Scan, ScanOptions};
 
 uniffi::custom_type!(PathBuf, String, {
     remote,
@@ -46,6 +46,7 @@ pub struct Review {
     /// Folders left out until the app has Full Disk Access.
     pub needs_full_disk_access: Vec<PathBuf>,
     pub findings: Vec<Finding>,
+    pub joints: Vec<Joint>,
 }
 
 /// Runs reviews, reports progress while one runs, and keeps the last scan for the space map.
@@ -73,7 +74,8 @@ impl Reviewer {
         self.entries_seen.store(0, Ordering::Relaxed);
         let opts = ScanOptions { progress: Some(self.entries_seen.clone()), ..ScanOptions::default() };
         let scan = crate::scan(&root, &opts)?;
-        let findings = crate::review(&scan, &ReviewOptions { fetch, ..ReviewOptions::default() });
+        let crate::Review { findings, joints } =
+            crate::review(&scan, &ReviewOptions { fetch, ..ReviewOptions::default() });
         let review = Review {
             root: scan.root.clone(),
             bytes: scan.node(0).bytes,
@@ -81,6 +83,7 @@ impl Reviewer {
             seconds: scan.stats.elapsed.as_secs_f64(),
             needs_full_disk_access: scan.stats.needs_full_disk_access.clone(),
             findings,
+            joints,
         };
         let atlas = Atlas::new(&scan, &review.findings);
         *self.last.lock().unwrap() = Some((scan, atlas));
@@ -99,6 +102,13 @@ impl Reviewer {
 #[uniffi::export]
 pub fn home_folder() -> PathBuf {
     crate::home()
+}
+
+/// Space applying `findings` together frees, counting nested ones once and the joint savings
+/// they complete.
+#[uniffi::export]
+pub fn freed_by(findings: Vec<Finding>, joints: Vec<Joint>) -> u64 {
+    crate::freed(&findings, &joints)
 }
 
 /// Applies findings, journaling them where the CLI does, so either can undo the other's work.

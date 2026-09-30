@@ -1,7 +1,8 @@
 //! What a review finds, and the plan a person approves before anything is touched.
 
+use std::collections::HashSet;
 use std::fmt::Write as _;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -83,6 +84,13 @@ pub enum Action {
     Nothing,
 }
 
+impl Action {
+    /// Whether applying this removes files, and so frees their space.
+    pub fn frees_space(&self) -> bool {
+        matches!(self, Action::Trash { .. } | Action::RemoveWorktree { .. })
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct Finding {
@@ -91,8 +99,12 @@ pub struct Finding {
     pub rule: Rule,
     pub safety: Safety,
     pub path: PathBuf,
-    /// Bytes applying this frees, as far as the scan can tell.
+    /// Bytes applying this alone frees. Less than `size` when it shares data with copies
+    /// (APFS clones, hard links) that stay behind; see `Joint` for copies that go together.
     pub bytes: u64,
+    /// Space it takes up on disk.
+    #[serde(default)]
+    pub size: u64,
     /// Days since anything in the relevant project or folder changed.
     pub idle_days: Option<u32>,
     pub detail: String,
@@ -107,6 +119,7 @@ impl Finding {
             safety,
             path,
             bytes,
+            size: bytes,
             idle_days: None,
             detail,
             action,
@@ -119,12 +132,44 @@ impl Finding {
     }
 }
 
+/// Space that only frees when every one of `findings` is applied: data their copies share,
+/// with no copy anywhere else. The Bun cache and the `node_modules` it cloned into, say.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct Joint {
+    /// Ids of the findings that must all be applied.
+    pub findings: Vec<String>,
+    pub bytes: u64,
+}
+
 /// A reviewed set of findings, saved to disk so people can edit it before applying.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Plan {
     pub root: PathBuf,
     pub created: i64,
     pub findings: Vec<Finding>,
+    #[serde(default)]
+    pub joints: Vec<Joint>,
+}
+
+/// Space applying `findings` together frees: each finding's own bytes with nested ones
+/// counted once, plus every joint saving whose findings are all included.
+pub fn freed(findings: &[Finding], joints: &[Joint]) -> u64 {
+    let mut freeing: Vec<&Finding> = findings.iter().filter(|f| f.action.frees_space()).collect();
+    freeing.sort_by(|a, b| a.path.cmp(&b.path));
+    let mut total = 0;
+    let mut outer: Option<&Path> = None;
+    for finding in freeing {
+        // Paths sort by component, so anything inside `outer` follows it directly.
+        if outer.is_some_and(|o| finding.path.starts_with(o)) {
+            continue;
+        }
+        total += finding.bytes;
+        outer = Some(&finding.path);
+    }
+    let ids: HashSet<&str> = findings.iter().map(|f| f.id.as_str()).collect();
+    total
+        + joints.iter().filter(|j| j.findings.iter().all(|id| ids.contains(id.as_str()))).map(|j| j.bytes).sum::<u64>()
 }
 
 /// 8 hex characters of FNV-1a: enough to tell a plan's findings apart.

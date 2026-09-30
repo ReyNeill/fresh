@@ -22,7 +22,8 @@ fn space_map_colors_by_kind_and_marks_what_can_go() {
     fs::File::open(root.join("code/app/package.json")).unwrap().set_modified(old).unwrap();
 
     let scan = scan(&root, &ScanOptions::default()).unwrap();
-    let findings = review(&scan, &ReviewOptions { home: root.clone(), min_bytes: 0, ..ReviewOptions::default() });
+    let findings =
+        review(&scan, &ReviewOptions { home: root.clone(), min_bytes: 0, ..ReviewOptions::default() }).findings;
     let map = Atlas::new(&scan, &findings).map(&scan, None, 800.0, 600.0, 4);
 
     let tile = |rel: &str| {
