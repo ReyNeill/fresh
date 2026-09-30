@@ -18,6 +18,14 @@ const ATTR_CMN_ERROR: u32 = 0x2000_0000;
 const ATTR_CMN_RETURNED_ATTRS: u32 = 0x8000_0000;
 const ATTR_FILE_LINKCOUNT: u32 = 0x0000_0001;
 const ATTR_FILE_ALLOCSIZE: u32 = 0x0000_0004;
+// Extended common attributes ride in the fork group under FSOPT_ATTR_CMN_EXTENDED.
+const FSOPT_NOFOLLOW: u64 = 0x0000_0001;
+const FSOPT_ATTR_CMN_EXTENDED: u64 = 0x0000_0020;
+const ATTR_CMNEXT_PRIVATESIZE: u32 = 0x0000_0008;
+const ATTR_CMNEXT_CLONEID: u32 = 0x0000_0100;
+const ATTR_CMNEXT_EXT_FLAGS: u32 = 0x0000_0200;
+const ATTR_CMNEXT_CLONE_REFCNT: u32 = 0x0000_1000;
+const EF_MAY_SHARE_BLOCKS: u64 = 0x0000_0001;
 const VREG: u32 = 1;
 const VDIR: u32 = 2;
 const VLNK: u32 = 5;
@@ -45,6 +53,14 @@ unsafe extern "C" {
         attr_buf_size: usize,
         options: u64,
     ) -> c_int;
+    fn getattrlistat(
+        dirfd: c_int,
+        path: *const libc::c_char,
+        attr_list: *mut c_void,
+        attr_buf: *mut c_void,
+        attr_buf_size: usize,
+        options: u64,
+    ) -> c_int;
     fn setiopolicy_np(iotype: c_int, scope: c_int, policy: c_int) -> c_int;
 }
 
@@ -61,13 +77,22 @@ pub enum EntryKind {
 pub struct Entry {
     pub name: Box<str>,
     pub kind: EntryKind,
-    /// Allocated bytes on disk (what deleting it can free), not the apparent length.
+    /// Allocated bytes on disk, not the apparent length.
     pub bytes: u64,
+    /// Bytes deleting this file alone frees: not shared with an APFS clone or held by a
+    /// snapshot. Only measured when listing with `sharing`; otherwise equal to `bytes`.
+    pub private: u64,
+    /// Identifies the data stream; full clones of each other share it. 0 without `sharing`.
+    pub clone_id: u64,
+    /// How many files share this data stream as full clones, this one included.
+    pub clones: u32,
     pub mtime: i64,
     /// An iCloud/File Provider placeholder whose contents live in the cloud.
     pub dataless: bool,
     pub file_id: u64,
     pub links: u32,
+    /// APFS says some blocks may be shared; `private` then needs asking for separately.
+    may_share: bool,
 }
 
 /// A listed directory: its device (to detect mount points) and its entries.
@@ -99,7 +124,9 @@ pub fn has_full_disk_access(home: &Path) -> bool {
 }
 
 /// Lists a directory with one syscall per batch of entries instead of one `lstat` per file.
-pub fn list_dir(path: &Path) -> io::Result<Listing> {
+/// `sharing` also asks APFS which files share data with others, which makes listing slower,
+/// so scans leave it off and only findings are measured with it.
+pub fn list_dir(path: &Path, sharing: bool) -> io::Result<Listing> {
     let cpath = CString::new(path.as_os_str().as_bytes())?;
     let raw = unsafe { libc::open(cpath.as_ptr(), libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC) };
     if raw < 0 {
@@ -124,14 +151,15 @@ pub fn list_dir(path: &Path) -> io::Result<Listing> {
         volattr: 0,
         dirattr: 0,
         fileattr: ATTR_FILE_LINKCOUNT | ATTR_FILE_ALLOCSIZE,
-        forkattr: 0,
+        forkattr: if sharing { ATTR_CMNEXT_CLONEID | ATTR_CMNEXT_EXT_FLAGS | ATTR_CMNEXT_CLONE_REFCNT } else { 0 },
     };
+    let options = if sharing { FSOPT_ATTR_CMN_EXTENDED } else { 0 };
 
     BUF.with_borrow_mut(|buf| {
         let mut entries = Vec::new();
         loop {
             let count = unsafe {
-                getattrlistbulk(fd.as_raw_fd(), (&raw mut attrs).cast(), buf.as_mut_ptr().cast(), buf.len(), 0)
+                getattrlistbulk(fd.as_raw_fd(), (&raw mut attrs).cast(), buf.as_mut_ptr().cast(), buf.len(), options)
             };
             if count < 0 {
                 return Err(io::Error::last_os_error());
@@ -148,8 +176,41 @@ pub fn list_dir(path: &Path) -> io::Result<Listing> {
                 offset += len;
             }
         }
+        // Private size is expensive, so only files that may share some but not all of their
+        // blocks (an edited clone, or data a snapshot holds) are asked for it.
+        for entry in &mut entries {
+            if entry.may_share && entry.clones <= 1 && entry.links <= 1 {
+                entry.private = private_size(&fd, &entry.name).unwrap_or(entry.bytes).min(entry.bytes);
+            }
+        }
         Ok(Listing { dev: st.st_dev as u64, entries })
     })
+}
+
+/// Bytes deleting `name` inside the directory `dir` would free right away.
+fn private_size(dir: &OwnedFd, name: &str) -> Option<u64> {
+    let name = CString::new(name).ok()?;
+    let mut attrs = AttrList {
+        bitmapcount: ATTR_BIT_MAP_COUNT,
+        reserved: 0,
+        commonattr: ATTR_CMN_RETURNED_ATTRS,
+        volattr: 0,
+        dirattr: 0,
+        fileattr: 0,
+        forkattr: ATTR_CMNEXT_PRIVATESIZE,
+    };
+    let mut buf = [0u8; 64];
+    let status = unsafe {
+        getattrlistat(
+            dir.as_raw_fd(),
+            name.as_ptr(),
+            (&raw mut attrs).cast(),
+            buf.as_mut_ptr().cast(),
+            buf.len(),
+            FSOPT_ATTR_CMN_EXTENDED | FSOPT_NOFOLLOW,
+        )
+    };
+    (status == 0 && read_u32(&buf, 4 + 16) & ATTR_CMNEXT_PRIVATESIZE != 0).then(|| read_u64(&buf, 4 + 20))
 }
 
 /// Decodes one packed entry. Attributes follow the returned-attribute set in bit order,
@@ -157,6 +218,7 @@ pub fn list_dir(path: &Path) -> io::Result<Listing> {
 fn parse_entry(e: &[u8]) -> Option<Entry> {
     let common = read_u32(e, 4);
     let file = read_u32(e, 4 + 12);
+    let extended = read_u32(e, 4 + 16);
     let mut p = 4 + 20;
 
     if common & ATTR_CMN_ERROR != 0 {
@@ -208,9 +270,38 @@ fn parse_entry(e: &[u8]) -> Option<Entry> {
     let mut bytes = 0;
     if file & ATTR_FILE_ALLOCSIZE != 0 {
         bytes = read_u64(e, p);
+        p += 8;
     }
+    let mut clone_id = 0;
+    if extended & ATTR_CMNEXT_CLONEID != 0 {
+        clone_id = read_u64(e, p);
+        p += 8;
+    }
+    let mut may_share = false;
+    if extended & ATTR_CMNEXT_EXT_FLAGS != 0 {
+        may_share = read_u64(e, p) & EF_MAY_SHARE_BLOCKS != 0;
+        p += 8;
+    }
+    let mut clones = 1;
+    if extended & ATTR_CMNEXT_CLONE_REFCNT != 0 {
+        clones = read_u32(e, p);
+    }
+    // Full clones share every block with the others, so none of it is theirs alone.
+    let private = if clones > 1 { 0 } else { bytes };
 
-    Some(Entry { name, kind, bytes, mtime, dataless: flags & SF_DATALESS != 0, file_id, links })
+    Some(Entry {
+        name,
+        kind,
+        bytes,
+        private,
+        clone_id,
+        clones,
+        may_share,
+        mtime,
+        dataless: flags & SF_DATALESS != 0,
+        file_id,
+        links,
+    })
 }
 
 fn read_u32(buf: &[u8], at: usize) -> u32 {

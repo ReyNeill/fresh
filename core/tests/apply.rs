@@ -17,8 +17,11 @@ fn apply_rechecks_each_finding_and_undo_restores_a_working_checkout() {
         min_bytes: 0,
         ..ReviewOptions::default()
     };
-    let mut plan: Vec<Finding> =
-        review(&scan, &opts).into_iter().filter(|f| matches!(key(f).2.as_str(), "wt-merged" | "feat-merged")).collect();
+    let mut plan: Vec<Finding> = review(&scan, &opts)
+        .findings
+        .into_iter()
+        .filter(|f| matches!(key(f).2.as_str(), "wt-merged" | "feat-merged"))
+        .collect();
     assert_eq!(plan.len(), 2);
     // A branch that moved since the review must be left alone.
     plan.push(Finding::new(

@@ -9,7 +9,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 use fresh_core::apply::{self, Applied, Journal, Outcome, Restored};
 use fresh_core::scan::NodeId;
-use fresh_core::{Action, Finding, Plan, ReviewOptions, Rule, Safety, Scan, ScanOptions};
+use fresh_core::{Action, Finding, Joint, Plan, ReviewOptions, Rule, Safety, Scan, ScanOptions, freed};
 
 #[derive(Parser)]
 #[command(name = "fresh", version, about = "Find what can go on your Mac, review it, and clean up reversibly")]
@@ -150,15 +150,15 @@ fn review(
 ) -> Result {
     let scan = run_scan(path)?;
     let opts = ReviewOptions { fetch, min_bytes: min, build_output_idle_days: idle, ..ReviewOptions::default() };
-    let findings = fresh_core::review(&scan, &opts);
-    let plan = Plan { root: scan.root.clone(), created: opts.now, findings };
+    let fresh_core::Review { findings, joints } = fresh_core::review(&scan, &opts);
+    let plan = Plan { root: scan.root.clone(), created: opts.now, findings, joints };
 
     if json {
         println!("{}", serde_json::to_string_pretty(&plan)?);
         return Ok(());
     }
     print_summary(&scan);
-    print_findings(&plan.findings, all);
+    print_findings(&plan.findings, &plan.joints, all);
     if !fetch {
         println!(
             "{}",
@@ -185,13 +185,14 @@ fn review(
 /// Largest findings shown per group unless `--all`.
 const GROUP_LIMIT: usize = 12;
 
-fn print_findings(findings: &[Finding], all: bool) {
+fn print_findings(findings: &[Finding], joints: &[Joint], all: bool) {
     let mut groups: BTreeMap<Rule, Vec<&Finding>> = BTreeMap::new();
     for f in findings {
         groups.entry(f.rule).or_default().push(f);
     }
     for (rule, items) in &groups {
-        let bytes: u64 = items.iter().map(|f| f.bytes).sum();
+        let group: Vec<Finding> = items.iter().map(|&f| f.clone()).collect();
+        let bytes = freed(&group, joints);
         let total = if bytes > 0 { format!("{} · {}", size(bytes), items.len()) } else { items.len().to_string() };
         println!("\n{}  {}", bold(rule.title()), dim(&total));
         let shown = if all { items.len() } else { GROUP_LIMIT.min(items.len()) };
@@ -199,31 +200,39 @@ fn print_findings(findings: &[Finding], all: bool) {
             print_finding(f);
         }
         if shown < items.len() {
-            let rest: u64 = items[shown..].iter().map(|f| f.bytes).sum();
+            let rest: u64 = items[shown..].iter().map(|f| f.size).sum();
             let rest = if rest > 0 { format!(", {}", size(rest)) } else { String::new() };
             println!("{}", dim(&format!("  … {} more{rest} (--all shows them)", items.len() - shown)));
         }
     }
 
-    let mut by_safety: BTreeMap<Safety, u64> = BTreeMap::new();
-    for f in outermost(findings) {
-        *by_safety.entry(f.safety).or_default() += f.bytes;
+    let mut by_safety: BTreeMap<Safety, Vec<Finding>> = BTreeMap::new();
+    for f in findings {
+        by_safety.entry(f.safety).or_default().push(f.clone());
     }
-    let parts: Vec<String> =
-        by_safety.iter().filter(|&(_, &b)| b > 0).map(|(s, &b)| format!("{} {}", size(b), safety_label(*s))).collect();
+    let parts: Vec<String> = by_safety
+        .iter()
+        .map(|(s, group)| (s, freed(group, joints)))
+        .filter(|&(_, b)| b > 0)
+        .map(|(s, b)| format!("{} {}", size(b), safety_label(*s)))
+        .collect();
     if !parts.is_empty() {
         println!("\n{} {}", bold("Reclaimable:"), parts.join(" · "));
     }
 }
 
 fn print_finding(f: &Finding) {
-    let size = if f.bytes > 0 { size(f.bytes) } else { String::new() };
+    let shown = if f.size > 0 { size(f.size) } else { String::new() };
     let mut note = vec![f.detail.clone()];
+    let shared = f.size.saturating_sub(f.bytes);
+    if f.action.frees_space() && shared > f.size / 10 {
+        note.push(format!("{} shared with copies", size(shared)));
+    }
     if let Some(days) = f.idle_days {
         note.push(format!("idle {days}d"));
     }
     note.push(safety_label(f.safety).into());
-    println!("  {}  {size:>9}  {}  {}", dim(&f.id), subject(f), dim(&note.join(" · ")));
+    println!("  {}  {shown:>9}  {}  {}", dim(&f.id), subject(f), dim(&note.join(" · ")));
 }
 
 fn safety_label(safety: Safety) -> &'static str {
@@ -233,20 +242,6 @@ fn safety_label(safety: Safety) -> &'static str {
         Safety::Review => "to review",
         Safety::Remote => "remote",
     }
-}
-
-/// Findings that actually free space and aren't inside another such finding, so nested
-/// ones (build output inside a worktree) count once.
-fn outermost(findings: &[Finding]) -> Vec<&Finding> {
-    let mut freeing: Vec<&Finding> = findings.iter().filter(|f| f.bytes > 0 && f.action != Action::Nothing).collect();
-    freeing.sort_by(|a, b| a.path.cmp(&b.path));
-    let mut kept: Vec<&Finding> = Vec::new();
-    for f in freeing {
-        if kept.last().is_none_or(|k| !f.path.starts_with(&k.path) || k.path == f.path) {
-            kept.push(f);
-        }
-    }
-    kept
 }
 
 fn apply(plan_path: &Path, only: &[String], remote: bool, yes: bool) -> Result {
@@ -266,7 +261,7 @@ fn apply(plan_path: &Path, only: &[String], remote: bool, yes: bool) -> Result {
         return Ok(());
     }
 
-    print_findings(&findings, true);
+    print_findings(&findings, &plan.joints, true);
     if !remote && remote_count > 0 {
         println!(
             "{}",
@@ -288,14 +283,9 @@ fn apply(plan_path: &Path, only: &[String], remote: bool, yes: bool) -> Result {
         }
     })?;
 
-    let trashed: u64 = results
-        .iter()
-        .filter(|a| {
-            matches!(a.outcome, Outcome::Applied)
-                && matches!(a.finding.action, Action::Trash { .. } | Action::RemoveWorktree { .. })
-        })
-        .map(|a| a.finding.bytes)
-        .sum();
+    let applied: Vec<Finding> =
+        results.iter().filter(|a| matches!(a.outcome, Outcome::Applied)).map(|a| a.finding.clone()).collect();
+    let trashed = freed(&applied, &plan.joints);
     let failed = results.iter().filter(|a| matches!(a.outcome, Outcome::Failed { .. })).count();
     println!();
     if trashed > 0 {

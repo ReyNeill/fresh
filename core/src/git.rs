@@ -43,6 +43,7 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
 
 pub(crate) fn review(scan: &Scan, claims: &Claims, now: i64, fetch: bool) -> Vec<Finding> {
     let repos = discover(scan, claims);
+    let busy = if repos.is_empty() { Vec::new() } else { working_dirs() };
     crate::scan::pool().install(|| {
         repos
             .par_iter()
@@ -50,10 +51,19 @@ pub(crate) fn review(scan: &Scan, claims: &Claims, now: i64, fetch: bool) -> Vec
                 if fetch {
                     let _ = git(repo, &["fetch", "--all", "--prune", "--quiet"]);
                 }
-                analyze(scan, repo, now, fetch)
+                analyze(scan, repo, now, fetch, &busy)
             })
             .collect()
     })
+}
+
+/// Folders running processes work in. A worktree one of them is in is in use, however long
+/// its files have gone untouched.
+fn working_dirs() -> Vec<PathBuf> {
+    let Ok(out) = Command::new("lsof").args(["-a", "-d", "cwd", "-F", "n"]).stderr(Stdio::null()).output() else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&out.stdout).lines().filter_map(|line| line.strip_prefix('n')).map(PathBuf::from).collect()
 }
 
 /// Working repositories in the scan: folders with a `.git` directory, outside caches and
@@ -186,11 +196,14 @@ fn measure(scan: &Scan, path: &Path) -> Option<(u64, i64)> {
 enum Progress {
     Done(String),
     Open,
+    /// Detached on commits a branch already has. Nothing would be lost, but agents and
+    /// bisects work in checkouts like this, so it's only suggested for review.
+    Detached,
     /// Detached on commits no branch has: removing it would lose them.
     Orphaned,
 }
 
-fn analyze(scan: &Scan, repo: &Path, now: i64, fetched: bool) -> Vec<Finding> {
+fn analyze(scan: &Scan, repo: &Path, now: i64, fetched: bool, busy: &[PathBuf]) -> Vec<Finding> {
     let mut out = Vec::new();
     let Ok(list) = git(repo, &["worktree", "list", "--porcelain"]) else { return out };
     let worktrees = parse_worktrees(&list);
@@ -221,14 +234,15 @@ fn analyze(scan: &Scan, repo: &Path, now: i64, fetched: bool) -> Vec<Finding> {
 
     // Branches of worktrees suggested for removal; those branches may then go too.
     let mut leaving: HashSet<&str> = HashSet::new();
-    for wt in worktrees.iter().skip(1).filter(|w| !w.prunable && !w.locked) {
+    let in_use = |wt: &Worktree| busy.iter().any(|dir| dir.starts_with(&wt.path));
+    for wt in worktrees.iter().skip(1).filter(|w| !w.prunable && !w.locked && !in_use(w)) {
         let Some((bytes, newest)) = measure(scan, &wt.path) else { continue };
         let idle = crate::days(now, newest);
         let progress = match &wt.branch {
             Some(b) if merged.contains_key(b) => Progress::Done(format!("{b} is merged into {}", merged[b])),
             Some(b) if upstream_gone(b) => Progress::Done(format!("{b} was deleted upstream")),
             Some(_) => Progress::Open,
-            None if contained(repo, &wt.head) => Progress::Done("detached on commits a branch already has".into()),
+            None if contained(repo, &wt.head) => Progress::Detached,
             None => Progress::Orphaned,
         };
         let clean = git(&wt.path, &["status", "--porcelain"]).is_ok_and(|s| s.is_empty());
@@ -241,6 +255,16 @@ fn analyze(scan: &Scan, repo: &Path, now: i64, fetched: bool) -> Vec<Finding> {
                 wt.path.clone(),
                 bytes,
                 format!("worktree of {repo_name}; {why}"),
+                remove,
+            ),
+            (Progress::Detached, true) if idle >= GRACE_DAYS => Finding::new(
+                Rule::Worktree,
+                Safety::Review,
+                wt.path.clone(),
+                bytes,
+                format!(
+                    "worktree of {repo_name}; detached on commits a branch already has, check no agent still uses it"
+                ),
                 remove,
             ),
             (Progress::Open, true) if idle >= STALE_DAYS => Finding::new(

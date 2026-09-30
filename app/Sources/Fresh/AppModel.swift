@@ -59,6 +59,12 @@ final class AppModel {
         review?.findings.filter { selection.contains($0.id) } ?? []
     }
 
+    /// Space cleaning up `findings` together frees: nested ones counted once, plus data their
+    /// copies share when every copy is among them.
+    func frees(_ findings: [Finding]) -> UInt64 {
+        freedBy(findings: findings, joints: review?.joints ?? [])
+    }
+
     /// Findings grouped by rule, in the order the review sorted them.
     var groups: [FindingGroup] {
         var groups: [FindingGroup] = []
@@ -69,6 +75,7 @@ final class AppModel {
                 groups.append(FindingGroup(rule: finding.rule, findings: [finding]))
             }
         }
+        for index in groups.indices { groups[index].bytes = frees(groups[index].findings) }
         return groups
     }
 
@@ -125,7 +132,7 @@ final class AppModel {
             selection.subtract(done)
             forgetEmptyGroup()
             if !done.isEmpty { mapIsStale = true }
-            notice = Notice(applied: results)
+            notice = Notice(applied: results, freed: frees(results.filter { $0.outcome == .applied }.map(\.finding)))
         } catch {
             notice = Notice(message: error.localizedDescription, problems: [], canUndo: false)
         }
@@ -182,8 +189,8 @@ struct FindingGroup: Identifiable {
     var findings: [Finding]
     var id: Rule { rule }
 
-    /// Bytes it frees, counting nested findings once.
-    var bytes: UInt64 { outermost(findings).map(\.bytes).reduce(0, +) }
+    /// Space cleaning up the whole group frees.
+    var bytes: UInt64 = 0
 
     /// Size when it frees space, otherwise how many there are (branches free none).
     var total: String {
@@ -199,16 +206,18 @@ extension Review {
             files: files,
             seconds: seconds,
             needsFullDiskAccess: needsFullDiskAccess,
-            findings: findings.filter { !ids.contains($0.id) }
+            findings: findings.filter { !ids.contains($0.id) },
+            // Savings that needed a finding that's gone can't happen anymore.
+            joints: joints.filter { $0.findings.allSatisfy { !ids.contains($0) } }
         )
     }
 }
 
 extension Notice {
-    init(applied results: [Applied]) {
+    /// `freed` is what emptying the Trash will free for the findings that were applied.
+    init(applied results: [Applied], freed trashed: UInt64) {
         let done = results.filter { $0.outcome == .applied }.map(\.finding)
         var parts: [String] = []
-        let trashed = outermost(done.filter(\.movesToTrash)).map(\.bytes).reduce(0, +)
         if trashed > 0 { parts.append("Moved \(trashed.formattedBytes) to the Trash") }
         let branches = done.filter(\.deletesBranch).count
         if branches > 0 { parts.append("deleted \(plural(branches, "branch", "branches"))") }

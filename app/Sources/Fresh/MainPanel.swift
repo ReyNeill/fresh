@@ -86,6 +86,7 @@ private struct EmptyState: View {
 
 /// The folder at a glance: its size, and what could go by how safe it is to let go.
 private struct Overview: View {
+    @Environment(AppModel.self) private var model
     let review: Review
 
     var body: some View {
@@ -113,9 +114,8 @@ private struct Overview: View {
     }
 
     private var totals: [(safety: Safety, bytes: UInt64)] {
-        let freeing = outermost(review.findings)
-        return [Safety.regenerable, .reversible, .review, .remote].compactMap { safety in
-            let bytes = freeing.filter { $0.safety == safety }.map(\.bytes).reduce(0, +)
+        [Safety.regenerable, .reversible, .review, .remote].compactMap { safety in
+            let bytes = model.frees(review.findings.filter { $0.safety == safety })
             return bytes > 0 ? (safety, bytes) : nil
         }
     }
@@ -198,7 +198,7 @@ private struct FindingRow: View {
                 .font(.system(size: 12))
             }
             Spacer(minLength: 16)
-            Text(finding.bytes > 0 ? finding.bytes.formattedBytes : "")
+            Text(finding.size > 0 ? finding.size.formattedBytes : "")
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.secondaryText)
                 .monospacedDigit()

@@ -86,8 +86,9 @@ Sizes and counts use monospaced digits so columns don't jitter as numbers change
 ## Components
 
 - **Finding row**: checkbox, then the name (13 medium) with its location (tertiary, truncated
-  in the middle), and a second line with the reason, idle time and a safety dot. The size is
-  right-aligned. The whole row toggles; right-click reveals it in Finder.
+  in the middle), and a second line with the reason, data shared with copies elsewhere, idle
+  time and a safety dot. The right-aligned size is what it takes up; totals (group headers,
+  the overview, the composer) are what cleaning up actually frees. The whole row toggles; right-click reveals it in Finder.
 - **Checkbox**: `.monochrome`: outlined when off, filled `primary` with a check when on.
 - **Primary button**: `PrimaryButtonStyle`, a filled capsule. One per screen.
 - **Chips**: `ChipButtonStyle`, gray text that picks up a soft background on hover or when on.
