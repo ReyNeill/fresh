@@ -4,7 +4,8 @@
   "scripts": {
     "c": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && FRESH_BUNDLE=app/build/check/Fresh.app ./app/build.sh",
     "app": "./app/build.sh && open app/build/Fresh.app",
-    "release": "./app/package.sh",
+    "package": "./app/package.sh",
+    "release": "./app/release.sh",
     "notarize": "./app/notarize.sh"
   }
 }

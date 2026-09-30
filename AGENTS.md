@@ -28,6 +28,8 @@ Fresh deletes things for people, so:
   triggers macOS privacy prompts. Build a copy elsewhere (`FRESH_BUNDLE=<dir>/Fresh.app
   app/build.sh`) and point it at a scratch folder: `open -n <dir>/Fresh.app --args -root <path>`.
 - A rule fix ships with a test that fails without it.
+- Releases are public and reach everyone's installed copy within a day. Only run
+  `bun run release` when asked.
 <!-- END:safety-rules -->
 
 <!-- BEGIN:design-rules -->
