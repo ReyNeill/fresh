@@ -2,6 +2,8 @@
 # Builds app/build/Fresh.app: the Rust core as a static library, Swift bindings for it,
 # then the SwiftUI app, bundled and ad-hoc signed.
 set -euo pipefail
+# rustup's default location, for shells that don't load a profile (tool prompts, IDE tasks).
+command -v cargo >/dev/null || export PATH="$HOME/.cargo/bin:$PATH"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/app"
 generated="$app/Generated"
