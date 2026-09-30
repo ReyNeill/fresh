@@ -1,0 +1,15 @@
+Installing Fresh
+
+1. Drag Fresh onto the Applications folder next to it.
+2. Open Fresh from Applications.
+
+The first time, macOS says it can't verify Fresh, because it isn't sold through Apple.
+Click Done, then:
+
+3. Open System Settings > Privacy & Security.
+4. Scroll down to "Fresh was blocked" and click Open Anyway.
+5. Enter your password. From then on Fresh opens normally.
+
+Fresh looks through your home folder for things you can clean up, so it works best with
+Full Disk Access: System Settings > Privacy & Security > Full Disk Access, then add Fresh.
+Nothing is ever deleted outright; everything goes to the Trash, and Undo puts it back.

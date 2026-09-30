@@ -4,3 +4,4 @@ plan.json
 /app/Generated
 /app/build
 /app/.build
+/dist
