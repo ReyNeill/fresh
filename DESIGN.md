@@ -98,6 +98,15 @@ Sizes and counts use monospaced digits so columns don't jitter as numbers change
 - **Primary button**: `PrimaryButtonStyle`, a filled capsule. One per screen.
 - **Chips**: `ChipButtonStyle`, gray text that picks up a soft background on hover or when on.
 
+## App icon
+
+The icon is a laptop wearing a suit: black and white, on white. `app/Icon.png` (or an
+`app/Icon.svg`, which wins) is square, full-bleed art: no rounded corners, margins or shadow
+of its own.
+`app/icon.swift` clips it to Apple's continuous-corner rounded square on the 1024 grid (824
+points, 100 points of margin) and adds the system's soft shadow, so it sits with other Mac
+icons and macOS 26 doesn't put it in a gray container.
+
 ## Motion and progress
 
 No spinners, shimmers, pulses or any other animation that repaints continuously; they peg
