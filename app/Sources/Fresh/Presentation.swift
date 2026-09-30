@@ -112,6 +112,43 @@ extension Safety {
     }
 }
 
+extension Kind {
+    /// Every kind, in legend order.
+    static let all: [Kind] = [.code, .git, .cache, .toolchain, .synced, .media, .documents, .apps, .other]
+
+    var title: String {
+        switch self {
+        case .code: "Code"
+        case .git: "Git"
+        case .cache: "Caches"
+        case .toolchain: "Toolchains"
+        case .synced: "Synced"
+        case .media: "Media"
+        case .documents: "Documents"
+        case .apps: "Apps"
+        case .other: "Other"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .code: Palette.mapCode
+        case .git: Palette.mapGit
+        case .cache: Palette.mapCache
+        case .toolchain: Palette.mapToolchain
+        case .synced: Palette.mapSynced
+        case .media: Palette.mapMedia
+        case .documents: Palette.mapDocuments
+        case .apps: Palette.mapApps
+        case .other: Palette.mapOther
+        }
+    }
+}
+
+extension Tile {
+    var rect: CGRect { CGRect(x: x, y: y, width: width, height: height) }
+}
+
 extension UInt64 {
     var formattedBytes: String { Int64(self).formatted(.byteCount(style: .file)) }
 }

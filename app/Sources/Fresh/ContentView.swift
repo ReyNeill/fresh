@@ -38,10 +38,11 @@ private struct TitleBar: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            Image(systemName: model.group?.symbol ?? "tray.full")
+            Image(systemName: model.showingMap ? "square.grid.3x2" : model.group?.symbol ?? "tray.full")
                 .font(.system(size: 12))
                 .foregroundStyle(Palette.secondaryText)
-            Text(model.group?.title ?? "Everything").font(.system(size: 13, weight: .medium))
+            Text(model.showingMap ? "Space map" : model.group?.title ?? "Everything")
+                .font(.system(size: 13, weight: .medium))
             Text(tilde(model.root.path))
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.tertiaryText)

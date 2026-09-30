@@ -19,6 +19,16 @@ enum Palette {
     static let blue = dynamic(0x2F6FEB, 0x6E9CF2)
     static let amber = dynamic(0xC27A00, 0xE8A33D)
     static let red = dynamic(0xD93A3A, 0xEF6B6B)
+    /// Space map fills, muted so labels stay readable and hatching shows through.
+    static let mapCode = dynamic(0x8FA9D6, 0x4A6A9E)
+    static let mapGit = dynamic(0xD99A9A, 0x8C4A4A)
+    static let mapCache = dynamic(0xE2C58A, 0x8C7340)
+    static let mapToolchain = dynamic(0x96C7A4, 0x4F805C)
+    static let mapSynced = dynamic(0x8FCACF, 0x46807F)
+    static let mapMedia = dynamic(0xB9A0DA, 0x6E579A)
+    static let mapDocuments = dynamic(0xCBC6BC, 0x6F6A60)
+    static let mapApps = dynamic(0xAAB6C4, 0x5A6675)
+    static let mapOther = dynamic(0xD7D7D7, 0x4A4A4A)
 
     private static func dynamic(_ light: UInt32, _ dark: UInt32, lightAlpha: Double = 1, darkAlpha: Double = 1) -> Color {
         Color(
