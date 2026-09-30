@@ -53,7 +53,7 @@ The system font throughout; weight does the work, not size.
 
 - 22 semibold: the folder name at the top of the column.
 - 15 semibold: the "Fresh" menu in the sidebar, empty-state titles.
-- 13 regular or medium: rows, sidebar items, the composer sentence, the title bar.
+- 13 regular or medium: rows, sidebar items, the composer sentence.
 - 12 regular: reasons, section labels, chips, counts.
 
 Sizes and counts use monospaced digits so columns don't jitter as numbers change.
@@ -67,8 +67,8 @@ Sizes and counts use monospaced digits so columns don't jitter as numbers change
 
 ## Layout
 
-- **Title bar**: hidden. A slim row shares the window controls' line and shows the shown
-  group above the main column.
+- **Title bar**: hidden. A slim empty strip leaves room for the window controls; there's no
+  title, because the sidebar's selected row already says where you are.
 - **Sidebar** (244pt, on `window`): the "Fresh ▾" menu, "Scan again", the space map, then the
   finding groups with their totals. There is no folder to pick: Fresh reviews the Mac. The selected group gets the `selected` highlight.
 - **Main card** (`surface`, rounded top-left corner): one column, at most 700pt wide and
