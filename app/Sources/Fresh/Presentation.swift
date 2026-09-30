@@ -92,10 +92,22 @@ extension Safety {
 
     var color: Color {
         switch self {
-        case .regenerable: .green
-        case .reversible: .blue
-        case .review: .orange
-        case .remote: .red
+        case .regenerable: Palette.green
+        case .reversible: Palette.blue
+        case .review: Palette.amber
+        case .remote: Palette.red
+        }
+    }
+}
+
+extension Safety {
+    /// How a total of this safety reads after its size: "56 GB regenerable".
+    var phrase: String {
+        switch self {
+        case .regenerable: "regenerable"
+        case .reversible: "reversible"
+        case .review: "to review"
+        case .remote: "on remotes"
         }
     }
 }
@@ -113,6 +125,11 @@ func tilde(_ path: String) -> String {
     let home = homeFolder()
     if path == home { return "~" }
     return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+}
+
+/// A folder's display name: "Home" for the home folder, else its last component.
+func folderName(_ path: String) -> String {
+    path == homeFolder() ? "Home" : URL(filePath: path).lastPathComponent
 }
 
 /// Findings that free space and aren't inside another one, so nested ones count once.

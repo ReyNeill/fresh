@@ -27,6 +27,8 @@ final class AppModel {
     private(set) var phase: Phase = .scanning(entries: 0)
     /// Ids of the findings to clean up.
     var selection: Set<String> = []
+    /// The group shown in the main column; `nil` shows everything.
+    var group: Rule?
     private(set) var notice: Notice?
     /// A clean-up or undo is running.
     private(set) var busy = false
@@ -47,6 +49,24 @@ final class AppModel {
 
     var selected: [Finding] {
         review?.findings.filter { selection.contains($0.id) } ?? []
+    }
+
+    /// Findings grouped by rule, in the order the review sorted them.
+    var groups: [FindingGroup] {
+        var groups: [FindingGroup] = []
+        for finding in review?.findings ?? [] {
+            if groups.last?.rule == finding.rule {
+                groups[groups.count - 1].findings.append(finding)
+            } else {
+                groups.append(FindingGroup(rule: finding.rule, findings: [finding]))
+            }
+        }
+        return groups
+    }
+
+    var visibleGroups: [FindingGroup] {
+        guard let group else { return groups }
+        return groups.filter { $0.rule == group }
     }
 
     /// Reviews another folder from now on.
@@ -75,6 +95,7 @@ final class AppModel {
             let review = try await work.value
             selection = Set(review.findings.filter(\.selectedByDefault).map(\.id))
             phase = .reviewed(review)
+            forgetEmptyGroup()
         } catch {
             phase = .failed(error.localizedDescription)
         }
@@ -91,6 +112,7 @@ final class AppModel {
             let done = Set(results.filter { $0.outcome == .applied }.map(\.finding.id))
             phase = .reviewed(review.without(done))
             selection.subtract(done)
+            forgetEmptyGroup()
             notice = Notice(applied: results)
         } catch {
             notice = Notice(message: error.localizedDescription, problems: [], canUndo: false)
@@ -112,6 +134,26 @@ final class AppModel {
 
     func dismissNotice() {
         notice = nil
+    }
+
+    /// Falls back to everything once the shown group has nothing left.
+    private func forgetEmptyGroup() {
+        if let group, !groups.contains(where: { $0.rule == group }) { self.group = nil }
+    }
+}
+
+/// Findings of one rule.
+struct FindingGroup: Identifiable {
+    let rule: Rule
+    var findings: [Finding]
+    var id: Rule { rule }
+
+    /// Bytes it frees, counting nested findings once.
+    var bytes: UInt64 { outermost(findings).map(\.bytes).reduce(0, +) }
+
+    /// Size when it frees space, otherwise how many there are (branches free none).
+    var total: String {
+        bytes > 0 ? bytes.formattedBytes : "\(findings.count)"
     }
 }
 
