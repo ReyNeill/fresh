@@ -4,6 +4,15 @@ Get your Mac back to fresh. `fresh` finds what's taking space and clutter (build
 Xcode leftovers, old installers, finished git worktrees and branches), lets you review it, and
 cleans it up reversibly.
 
+## Install
+
+Download the DMG from the [latest release](https://github.com/ReyNeill/fresh/releases/latest),
+open it, and drag Fresh to Applications. Fresh isn't notarized, so macOS blocks the first launch
+once: click Done, then System Settings ▸ Privacy & Security ▸ Open Anyway. After that it updates
+itself (Fresh ▸ Check for Updates…). Needs macOS 15 or later.
+
+## The command line
+
 ```bash
 cargo build --release
 ./target/release/fresh scan                 # where the space goes
@@ -57,17 +66,20 @@ Developer ID Application certificate, store notary credentials once with
 `xcrun notarytool store-credentials fresh-notary`, then run `bun run notarize` after
 building.
 
-## Sharing
+## Releasing
+
+Bump `CFBundleShortVersionString` in `app/Info.plist`, merge to `main`, then:
 
 ```bash
-bun run release   # a universal (Apple Silicon and Intel), signed dist/Fresh-<version>.dmg
+bun run release   # builds the DMG, signs the update, publishes GitHub release v<version>
 ```
 
-Share the DMG any way you like. It's signed with an Apple Development certificate but not
-notarized, so each Mac blocks the first launch once; System Settings ▸ Privacy & Security ▸
-Open Anyway lets it through, and the DMG includes those steps. Fresh needs macOS 15 or later.
-Updates keep the same signature, so the Full Disk Access your friends grant carries over.
-Bump `CFBundleShortVersionString` in `app/Info.plist` for each release.
+The release carries a universal (Apple Silicon and Intel) DMG and `appcast.xml`, the feed the
+app checks daily through `releases/latest`. Updates are signed with an EdDSA key that lives in
+the release machine's Keychain (made once with Sparkle's `generate_keys`), and the app only
+installs updates signed with it and with the same certificate, so the Full Disk Access people
+grant carries over. Back the key up with `generate_keys -x <file>` somewhere safe: without it,
+installed copies can't update. `bun run package` builds the DMG alone.
 
 The icon is drawn from `app/Icon.svg`, else `app/Icon.png`: square art edge to edge, with no
 rounded corners, margins or shadow. The build applies the macOS shape, grid and sizes.

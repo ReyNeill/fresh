@@ -39,9 +39,17 @@ xcodebuild -create-xcframework -library target/fresh/libfresh_ffi.a \
 
 swift build -c release --package-path "$app" "${swift_archs[@]}"
 bundle="${FRESH_BUNDLE:-$app/build/Fresh.app}"
-rm -rf "$bundle" && mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
-cp "$(swift build -c release --package-path "$app" "${swift_archs[@]}" --show-bin-path)/Fresh" "$bundle/Contents/MacOS/"
+products="$(swift build -c release --package-path "$app" "${swift_archs[@]}" --show-bin-path)"
+rm -rf "$bundle" && mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Frameworks"
+cp "$products/Fresh" "$bundle/Contents/MacOS/"
+install_name_tool -add_rpath @executable_path/../Frameworks "$bundle/Contents/MacOS/Fresh"
+ditto "$products/Sparkle.framework" "$bundle/Contents/Frameworks/Sparkle.framework"
+# Sparkle's XPC services are for sandboxed apps; Fresh isn't one.
+rm -rf "$bundle/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices"
 cp "$app/Info.plist" "$bundle/Contents/"
+# Updates compare build versions, so it always matches the one version to bump.
+version="$(plutil -extract CFBundleShortVersionString raw -o - "$app/Info.plist")"
+plutil -replace CFBundleVersion -string "$version" "$bundle/Contents/Info.plist"
 # The icon is drawn from square, full-bleed art (Icon.svg, else Icon.png); without either,
 # macOS shows its generic icon.
 for art in "$app/Icon.svg" "$app/Icon.png"; do
@@ -62,10 +70,16 @@ if [ -z "$identity" ]; then
   [ -n "$identity" ] || identity="$(grep -o '"Apple Development: [^"]*"' <<<"$identities" | head -1 | tr -d '"' || true)"
 fi
 if [ -z "$identity" ]; then
-  codesign --force --sign - "$bundle"
+  sign() { codesign --force --sign - "$1"; }
 elif [[ "$identity" == "Developer ID Application:"* ]]; then
-  codesign --force --options runtime --timestamp --sign "$identity" "$bundle"
+  sign() { codesign --force --options runtime --timestamp --sign "$identity" "$1"; }
 else
-  codesign --force --options runtime --timestamp=none --sign "$identity" "$bundle"
+  sign() { codesign --force --options runtime --timestamp=none --sign "$identity" "$1"; }
 fi
+# Inside out: Sparkle's helpers, then the framework, then the app.
+sparkle="$bundle/Contents/Frameworks/Sparkle.framework"
+sign "$sparkle/Versions/B/Autoupdate"
+sign "$sparkle/Versions/B/Updater.app"
+sign "$sparkle"
+sign "$bundle"
 echo "$bundle"

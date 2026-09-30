@@ -5,11 +5,13 @@ import SwiftUI
 /// App menu, the scan action, the space map, and the finding groups to browse.
 struct Sidebar: View {
     @Environment(AppModel.self) private var model
+    @Environment(Updates.self) private var updates
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             Menu {
                 SettingsLink { Text("Settings…") }
+                Button("Check for Updates…") { updates.check() }
                 Divider()
                 Button("Undo Last Clean-Up") { Task { await model.undo() } }
                     .disabled(model.busy)
