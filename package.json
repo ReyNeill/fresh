@@ -1,0 +1,8 @@
+{
+  "name": "fresh",
+  "private": true,
+  "scripts": {
+    "c": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && ./app/build.sh",
+    "app": "./app/build.sh && open app/build/Fresh.app"
+  }
+}

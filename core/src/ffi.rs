@@ -1,0 +1,101 @@
+//! The API the Swift app links against, exported through UniFFI.
+
+use std::fmt;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::apply::{self, Applied, Journal, Undone};
+use crate::{Finding, ReviewOptions, ScanOptions};
+
+uniffi::custom_type!(PathBuf, String, {
+    remote,
+    lower: |path| path.to_string_lossy().into_owned(),
+    try_lift: |text| Ok(PathBuf::from(text)),
+});
+
+#[derive(Debug, uniffi::Error)]
+pub enum FreshError {
+    Io { message: String },
+}
+
+impl fmt::Display for FreshError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FreshError::Io { message } => f.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for FreshError {}
+
+impl From<std::io::Error> for FreshError {
+    fn from(e: std::io::Error) -> Self {
+        FreshError::Io { message: e.to_string() }
+    }
+}
+
+/// A finished review: the scan's totals and everything worth a look.
+#[derive(uniffi::Record)]
+pub struct Review {
+    pub root: PathBuf,
+    pub bytes: u64,
+    pub files: u64,
+    pub seconds: f64,
+    /// Folders left out until the app has Full Disk Access.
+    pub needs_full_disk_access: Vec<PathBuf>,
+    pub findings: Vec<Finding>,
+}
+
+/// Runs reviews and reports progress while one runs.
+#[derive(Default, uniffi::Object)]
+pub struct Reviewer {
+    entries_seen: Arc<AtomicU64>,
+}
+
+#[uniffi::export]
+impl Reviewer {
+    #[uniffi::constructor]
+    pub fn new() -> Arc<Self> {
+        Arc::default()
+    }
+
+    /// Directory entries listed so far by the review in progress.
+    pub fn entries_seen(&self) -> u64 {
+        self.entries_seen.load(Ordering::Relaxed)
+    }
+
+    /// Scans `root` and reviews it with the default thresholds. Takes seconds, so call it off
+    /// the main thread. `fetch` asks each repo's remote first, so remote branches show up.
+    pub fn review(&self, root: PathBuf, fetch: bool) -> Result<Review, FreshError> {
+        self.entries_seen.store(0, Ordering::Relaxed);
+        let opts = ScanOptions { progress: Some(self.entries_seen.clone()), ..ScanOptions::default() };
+        let scan = crate::scan(&root, &opts)?;
+        let findings = crate::review(&scan, &ReviewOptions { fetch, ..ReviewOptions::default() });
+        Ok(Review {
+            root: scan.root.clone(),
+            bytes: scan.node(0).bytes,
+            files: scan.stats.files,
+            seconds: scan.stats.elapsed.as_secs_f64(),
+            needs_full_disk_access: scan.stats.needs_full_disk_access.clone(),
+            findings,
+        })
+    }
+}
+
+#[uniffi::export]
+pub fn home_folder() -> PathBuf {
+    crate::home()
+}
+
+/// Applies findings, journaling them where the CLI does, so either can undo the other's work.
+#[uniffi::export]
+pub fn apply_findings(findings: Vec<Finding>) -> Result<Vec<Applied>, FreshError> {
+    Ok(apply::apply(findings, &Journal::default_location(), |_| {})?)
+}
+
+/// Puts back the last applied batch; `None` when there's nothing to undo.
+#[uniffi::export]
+pub fn undo_last() -> Result<Option<Undone>, FreshError> {
+    Ok(apply::undo_last(&Journal::default_location())?)
+}

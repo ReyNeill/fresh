@@ -1,0 +1,12 @@
+[package]
+name = "fresh-ffi"
+edition.workspace = true
+version.workspace = true
+
+# The static library the Swift app links, plus a dylib uniffi-bindgen reads metadata from.
+[lib]
+name = "fresh_ffi"
+crate-type = ["staticlib", "cdylib"]
+
+[dependencies]
+fresh-core = { path = "../core", features = ["ffi"] }
