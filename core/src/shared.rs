@@ -49,7 +49,7 @@ impl Sharing {
 /// the space only several findings free together. Copies are counted toward the outermost
 /// finding holding them.
 pub(crate) fn resolve(findings: &mut [Finding]) -> Vec<Joint> {
-    let freeing: Vec<usize> = (0..findings.len()).filter(|&i| findings[i].action.frees_space()).collect();
+    let freeing: Vec<usize> = (0..findings.len()).filter(|&i| findings[i].action.removes_files()).collect();
     let nested: Vec<bool> = freeing
         .iter()
         .map(|&i| {

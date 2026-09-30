@@ -30,7 +30,7 @@ extension Finding {
         switch action {
         case .deleteBranch(_, let branch, _): branch
         case .deleteRemoteBranch(_, let remote, let branch, _): "\(remote)/\(branch)"
-        default: URL(filePath: path).lastPathComponent
+        default: label ?? URL(filePath: path).lastPathComponent
         }
     }
 

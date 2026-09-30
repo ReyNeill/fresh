@@ -85,9 +85,15 @@ pub enum Action {
 }
 
 impl Action {
-    /// Whether applying this removes files, and so frees their space.
-    pub fn frees_space(&self) -> bool {
+    /// Whether applying this removes the files at the finding's path.
+    pub fn removes_files(&self) -> bool {
         matches!(self, Action::Trash { .. } | Action::RemoveWorktree { .. })
+    }
+
+    /// Whether applying this frees disk space: by removing files, or through a tool's own
+    /// cleanup (deleting a simulator runtime, say).
+    pub fn frees_space(&self) -> bool {
+        self.removes_files() || matches!(self, Action::Run { .. })
     }
 }
 
@@ -109,6 +115,10 @@ pub struct Finding {
     pub idle_days: Option<u32>,
     pub detail: String,
     pub action: Action,
+    /// A name to show instead of the path's last component, for things whose path says
+    /// little ("iOS 26.5 Simulator").
+    #[serde(default)]
+    pub label: Option<String>,
 }
 
 impl Finding {
@@ -123,7 +133,13 @@ impl Finding {
             idle_days: None,
             detail,
             action,
+            label: None,
         }
+    }
+
+    pub fn labeled(mut self, label: String) -> Self {
+        self.label = Some(label);
+        self
     }
 
     pub fn idle(mut self, days: Option<u32>) -> Self {

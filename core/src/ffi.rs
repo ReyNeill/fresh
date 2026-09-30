@@ -77,7 +77,9 @@ impl Reviewer {
         let scan = crate::scan(&root, &opts)?;
         // A broken settings file shouldn't block reviews; the Settings window reports it.
         let excluded = Settings::load().map(|s| s.excluded).unwrap_or_default();
-        let opts = ReviewOptions { fetch, excluded, ..ReviewOptions::default() };
+        // Reviewing the home folder means reviewing the Mac, so look outside it too.
+        let system = root == crate::home();
+        let opts = ReviewOptions { fetch, excluded, system, ..ReviewOptions::default() };
         let crate::Review { findings, joints } = crate::review(&scan, &opts);
         let review = Review {
             root: scan.root.clone(),

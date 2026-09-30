@@ -21,7 +21,9 @@ struct Notice {
 /// All Rust calls run off the main actor; they block for as long as the work takes.
 @MainActor @Observable
 final class AppModel {
-    private(set) var root: URL
+    /// The home folder: reviewing it reviews the Mac. Launching with `-root <path>` reviews
+    /// another folder instead, for trying the app on a scratch folder.
+    let root: URL
     /// Fetch every repository before reviewing, so merged branches on the remote show up.
     var checkRemotes = false
     private(set) var phase: Phase = .scanning(entries: 0)
@@ -128,14 +130,7 @@ final class AppModel {
         return groups.filter { $0.rule == group }
     }
 
-    /// Reviews another folder from now on.
-    func choose(_ folder: URL) async {
-        root = folder
-        UserDefaults.standard.set(folder.path, forKey: "root")
-        await scan()
-    }
-
-    /// Scans and reviews the folder, counting listed entries as it goes.
+    /// Scans and reviews the Mac, counting listed entries as it goes.
     func scan() async {
         phase = .scanning(entries: 0)
         let reviewer = reviewer

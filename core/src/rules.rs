@@ -202,7 +202,7 @@ fn known_locations(scan: &Scan, opts: &ReviewOptions, claims: &mut Claims, out: 
 }
 
 /// Executable paths of running processes, lowercased.
-fn running_programs() -> Vec<String> {
+pub(crate) fn running_programs() -> Vec<String> {
     Command::new("ps")
         .args(["-axo", "comm="])
         .stderr(Stdio::null())

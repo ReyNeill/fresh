@@ -25,8 +25,8 @@ Fresh deletes things for people, so:
 - "Regenerable" means it comes back on its own. Check new rules against tool installs (home
   dotfolders, editor extensions, app bundles) and caches of running apps.
 - Don't scan a real home folder from the app without warning the user: a new app bundle
-  triggers macOS privacy prompts. Point it at a scratch folder instead with
-  `defaults write io.silixon.fresh root -string <path>`.
+  triggers macOS privacy prompts. Build a copy elsewhere (`FRESH_BUNDLE=<dir>/Fresh.app
+  app/build.sh`) and point it at a scratch folder: `open -n <dir>/Fresh.app --args -root <path>`.
 - A rule fix ships with a test that fails without it.
 <!-- END:safety-rules -->
 

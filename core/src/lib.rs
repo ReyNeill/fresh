@@ -13,6 +13,7 @@ pub mod scan;
 pub mod settings;
 mod shared;
 mod sys;
+mod system;
 pub mod trash;
 pub mod treemap;
 
@@ -42,6 +43,9 @@ pub struct ReviewOptions {
     pub build_output_idle_days: u32,
     /// Findings at or inside these paths are left out (`settings::Settings::excluded`).
     pub excluded: Vec<PathBuf>,
+    /// Also look outside the scanned folder, at old simulator runtimes and extra copies of
+    /// Xcode. For whole-Mac reviews; it runs system tools, so tests leave it off.
+    pub system: bool,
 }
 
 impl Default for ReviewOptions {
@@ -56,6 +60,7 @@ impl Default for ReviewOptions {
             min_bytes: 50 << 20,
             build_output_idle_days: 14,
             excluded: Vec::new(),
+            system: false,
         }
     }
 }
@@ -73,6 +78,9 @@ pub fn review(scan: &Scan, opts: &ReviewOptions) -> Review {
     let mut claims = rules::Claims::new(scan);
     let mut findings = rules::review(scan, opts, &mut claims);
     findings.extend(git::review(scan, &claims, opts.now, opts.fetch));
+    if opts.system {
+        findings.extend(system::review(opts));
+    }
     findings.retain(|f| {
         !opts.excluded.iter().any(|excluded| f.path.starts_with(excluded))
             && (f.rule.is_git() || f.size >= opts.min_bytes)
