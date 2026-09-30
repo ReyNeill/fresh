@@ -29,7 +29,11 @@ Fresh deletes things for people, so:
   app/build.sh`) and point it at a scratch folder: `open -n <dir>/Fresh.app --args -root <path>`.
 - A rule fix ships with a test that fails without it.
 - Releases are public and reach everyone's installed copy within a day. Only run
-  `bun run release` when asked.
+  `bun run release` when asked. It publishes the version in `app/Info.plist` (bump
+  `CFBundleShortVersionString` and merge to `main` first) as a universal DMG plus the
+  `appcast.xml` feed the app checks. Updates are signed with the EdDSA key in the release
+  Mac's Keychain; without it (back it up with Sparkle's `generate_keys -x <file>`),
+  installed copies can't update. `bun run package` builds the DMG alone.
 <!-- END:safety-rules -->
 
 <!-- BEGIN:design-rules -->
