@@ -7,13 +7,12 @@ struct ContentView: View {
     static let sidebarWidth: CGFloat = 244
 
     @Environment(AppModel.self) private var model
-    @State private var choosingFolder = false
 
     var body: some View {
         VStack(spacing: 0) {
             TitleBar()
             HStack(spacing: 0) {
-                Sidebar(chooseFolder: { choosingFolder = true })
+                Sidebar()
                     .frame(width: Self.sidebarWidth)
                 MainPanel()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -24,9 +23,6 @@ struct ContentView: View {
         .background(Palette.window)
         .ignoresSafeArea()
         .foregroundStyle(Palette.text)
-        .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
-            if case .success(let folder) = result { Task { await model.choose(folder) } }
-        }
         .onChange(of: model.checkRemotes) { Task { await model.scan() } }
         .task { await model.scan() }
     }
@@ -43,11 +39,6 @@ private struct TitleBar: View {
                 .foregroundStyle(Palette.secondaryText)
             Text(model.showingMap ? "Space map" : model.group?.title ?? "Everything")
                 .font(.system(size: 13, weight: .medium))
-            Text(tilde(model.root.path))
-                .font(.system(size: 13))
-                .foregroundStyle(Palette.tertiaryText)
-                .lineLimit(1)
-                .truncationMode(.middle)
             Spacer()
         }
         .padding(.leading, ContentView.sidebarWidth + 16)

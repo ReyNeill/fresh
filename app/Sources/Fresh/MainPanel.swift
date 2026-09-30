@@ -13,7 +13,7 @@ struct MainPanel: View {
         switch model.phase {
         case .scanning(let entries):
             VStack(spacing: 4) {
-                Text("Scanning \(tilde(model.root.path))")
+                Text(model.root.path == homeFolder() ? "Scanning your Mac" : "Scanning \(tilde(model.root.path))")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Palette.secondaryText)
                 Text("\(entries.formatted()) items so far")
@@ -31,7 +31,7 @@ struct MainPanel: View {
                     EmptyState(
                         symbol: "sparkles",
                         title: "All fresh",
-                        message: "Nothing in \(tilde(review.root)) is worth cleaning up."
+                        message: "Nothing on your Mac is worth cleaning up."
                     )
                 } else {
                     ScrollView {
@@ -91,9 +91,11 @@ private struct Overview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(folderName(review.root)).font(.system(size: 22, weight: .semibold))
+            let isHome = review.root == homeFolder()
+            Text(isHome ? "Your Mac" : folderName(review.root))
+                .font(.system(size: 22, weight: .semibold))
             Text(
-                "\(review.bytes.formattedBytes) in \(review.files.formatted()) files, scanned in \(review.seconds.formatted(.number.precision(.fractionLength(1)))) s"
+                "\(isHome ? "Home folder: " : "")\(review.bytes.formattedBytes) in \(review.files.formatted()) files, scanned in \(review.seconds.formatted(.number.precision(.fractionLength(1)))) s"
             )
             .font(.system(size: 13))
             .foregroundStyle(Palette.secondaryText)

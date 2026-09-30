@@ -41,8 +41,9 @@ cargo build --release
 open app/build/Fresh.app
 ```
 
-The app reviews your home folder (or one you pick), pre-selects what's regenerable or
-reversible, and cleans up after a confirmation. Its space map shows the whole folder as a
+The app reviews your Mac: everything in your home folder, plus simulator runtimes you haven't
+used in a month and extra copies of Xcode. It pre-selects what's regenerable or reversible,
+and cleans up after a confirmation. Its space map shows the whole folder as a
 treemap, colored by kind of data, with what can go hatched. Right-click an app's cache to
 exclude it; Settings (⌘,) lists everything excluded, and the CLI honors the same list. Undo sits in the status chip after a
 clean-up and in the Fresh menu. The app and the CLI share one journal, but macOS lets only the

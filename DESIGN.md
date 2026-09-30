@@ -68,11 +68,12 @@ Sizes and counts use monospaced digits so columns don't jitter as numbers change
 ## Layout
 
 - **Title bar**: hidden. A slim row shares the window controls' line and shows the shown
-  group and folder above the main column.
-- **Sidebar** (244pt, on `window`): the "Fresh ▾" menu, "Scan again", the folder, then the
-  finding groups with their totals. The selected group gets the `selected` highlight.
+  group above the main column.
+- **Sidebar** (244pt, on `window`): the "Fresh ▾" menu, "Scan again", the space map, then the
+  finding groups with their totals. There is no folder to pick: Fresh reviews the Mac. The selected group gets the `selected` highlight.
 - **Main card** (`surface`, rounded top-left corner): one column, at most 700pt wide and
-  centered. It opens with the folder at a glance (size, files, what's reclaimable by safety),
+  centered. It opens with "Your Mac" at a glance (the home folder's size and files, and
+  what's reclaimable by safety),
   then each group's rows. Rows fade out under the composer.
 - **Space map** (the sidebar's "Map"): the treemap takes the whole card. A trail of folders
   sits top left (each step zooms back out), the kind legend top right, a line under the map

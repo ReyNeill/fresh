@@ -148,10 +148,18 @@ fn review(
     fetch: bool,
     all: bool,
 ) -> Result {
+    // Without a folder, the review covers the whole Mac: home plus what's outside it.
+    let system = path.is_none();
     let scan = run_scan(path)?;
     let excluded = fresh_core::settings::Settings::load()?.excluded;
-    let opts =
-        ReviewOptions { fetch, min_bytes: min, build_output_idle_days: idle, excluded, ..ReviewOptions::default() };
+    let opts = ReviewOptions {
+        fetch,
+        min_bytes: min,
+        build_output_idle_days: idle,
+        excluded,
+        system,
+        ..ReviewOptions::default()
+    };
     let fresh_core::Review { findings, joints } = fresh_core::review(&scan, &opts);
     let plan = Plan { root: scan.root.clone(), created: opts.now, findings, joints };
 
@@ -231,7 +239,7 @@ fn print_finding(f: &Finding) {
     let shown = if f.size > 0 { size(f.size) } else { String::new() };
     let mut note = vec![f.detail.clone()];
     let shared = f.size.saturating_sub(f.bytes);
-    if f.action.frees_space() && shared > f.size / 10 {
+    if f.action.removes_files() && shared > f.size / 10 {
         note.push(format!("{} shared with copies", size(shared)));
     }
     if let Some(days) = f.idle_days {
@@ -336,7 +344,7 @@ fn subject(f: &Finding) -> String {
     match &f.action {
         Action::DeleteBranch { repo: r, branch, .. } => format!("{}: {branch}", repo(r)),
         Action::DeleteRemoteBranch { repo: r, remote, branch, .. } => format!("{}: {remote}/{branch}", repo(r)),
-        _ => tilde(&f.path),
+        _ => f.label.clone().unwrap_or_else(|| tilde(&f.path)),
     }
 }
 

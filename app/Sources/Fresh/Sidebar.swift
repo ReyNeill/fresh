@@ -2,16 +2,13 @@ import AppKit
 import FreshCore
 import SwiftUI
 
-/// App menu, the scan action, the folder, and the finding groups to browse.
+/// App menu, the scan action, the space map, and the finding groups to browse.
 struct Sidebar: View {
     @Environment(AppModel.self) private var model
-    let chooseFolder: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             Menu {
-                Button("Choose Folder…", action: chooseFolder)
-                Button("Review Home Folder") { Task { await model.choose(URL(filePath: homeFolder())) } }
                 SettingsLink { Text("Settings…") }
                 Divider()
                 Button("Undo Last Clean-Up") { Task { await model.undo() } }
@@ -35,9 +32,6 @@ struct Sidebar: View {
             SidebarRow(symbol: "arrow.clockwise", title: "Scan again") { Task { await model.scan() } }
                 .disabled(model.isScanning || model.busy)
 
-            SectionLabel("Folder")
-            SidebarRow(symbol: "folder", title: model.root.lastPathComponent, action: chooseFolder)
-                .help(tilde(model.root.path))
 
             if let review = model.review {
                 SectionLabel("Space")
