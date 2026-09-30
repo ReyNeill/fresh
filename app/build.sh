@@ -24,5 +24,22 @@ bundle="$app/build/Fresh.app"
 rm -rf "$bundle" && mkdir -p "$bundle/Contents/MacOS"
 cp "$(swift build -c release --package-path "$app" --show-bin-path)/Fresh" "$bundle/Contents/MacOS/"
 cp "$app/Info.plist" "$bundle/Contents/"
-codesign --force --sign - "$bundle"
+
+# Sign with the most durable identity available. A Developer ID can ship to other Macs
+# (see notarize.sh); an Apple Development identity stays on this Mac but is stable, so privacy
+# grants like Full Disk Access survive rebuilds; ad-hoc is the fallback (CI).
+# FRESH_SIGN_IDENTITY overrides the choice.
+identity="${FRESH_SIGN_IDENTITY:-}"
+if [ -z "$identity" ]; then
+  identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+  identity="$(grep -o '"Developer ID Application: [^"]*"' <<<"$identities" | head -1 | tr -d '"' || true)"
+  [ -n "$identity" ] || identity="$(grep -o '"Apple Development: [^"]*"' <<<"$identities" | head -1 | tr -d '"' || true)"
+fi
+if [ -z "$identity" ]; then
+  codesign --force --sign - "$bundle"
+elif [[ "$identity" == "Developer ID Application:"* ]]; then
+  codesign --force --options runtime --timestamp --sign "$identity" "$bundle"
+else
+  codesign --force --options runtime --timestamp=none --sign "$identity" "$bundle"
+fi
 echo "$bundle"
