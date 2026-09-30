@@ -23,6 +23,8 @@ struct MainPanel: View {
             }
         case .failed(let message):
             EmptyState(symbol: "exclamationmark.triangle", title: "Couldn't scan", message: message)
+        case .reviewed(let review) where model.showingMap:
+            SpaceMapView(review: review)
         case .reviewed(let review):
             ZStack(alignment: .bottom) {
                 if review.findings.isEmpty {

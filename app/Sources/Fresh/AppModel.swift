@@ -29,6 +29,14 @@ final class AppModel {
     var selection: Set<String> = []
     /// The group shown in the main column; `nil` shows everything.
     var group: Rule?
+    /// The space map is shown instead of the findings.
+    var showingMap = false
+    /// The map of the folder being looked at, laid out for the map view's size.
+    private(set) var spaceMap: SpaceMap?
+    /// The map was drawn before the last clean-up, so it still shows what went.
+    private(set) var mapIsStale = false
+    private var mapNode: UInt32?
+    private var mapSize: CGSize = .zero
     private(set) var notice: Notice?
     /// A clean-up or undo is running.
     private(set) var busy = false
@@ -96,6 +104,9 @@ final class AppModel {
             selection = Set(review.findings.filter(\.selectedByDefault).map(\.id))
             phase = .reviewed(review)
             forgetEmptyGroup()
+            mapNode = nil
+            mapIsStale = false
+            layOutMap()
         } catch {
             phase = .failed(error.localizedDescription)
         }
@@ -113,6 +124,7 @@ final class AppModel {
             phase = .reviewed(review.without(done))
             selection.subtract(done)
             forgetEmptyGroup()
+            if !done.isEmpty { mapIsStale = true }
             notice = Notice(applied: results)
         } catch {
             notice = Notice(message: error.localizedDescription, problems: [], canUndo: false)
@@ -134,6 +146,28 @@ final class AppModel {
 
     func dismissNotice() {
         notice = nil
+    }
+
+    /// Lays the map out again for a new view size.
+    func layOutMap(in size: CGSize) {
+        mapSize = size
+        layOutMap()
+    }
+
+    /// Shows a folder of the scan on the map; `nil` is the scanned folder itself.
+    func zoom(to node: UInt32?) {
+        mapNode = node
+        layOutMap()
+    }
+
+    private func layOutMap() {
+        guard mapSize.width > 0, mapSize.height > 0 else { return }
+        spaceMap = reviewer.spaceMap(node: mapNode, width: mapSize.width, height: mapSize.height, depth: 4)
+    }
+
+    /// The finding a map tile is, or the one it sits inside.
+    func finding(covering path: String) -> Finding? {
+        review?.findings.first { path == $0.path || path.hasPrefix($0.path + "/") }
     }
 
     /// Falls back to everything once the shown group has nothing left.

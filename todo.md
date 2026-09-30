@@ -1,6 +1,7 @@
 # TODO
 
-- [ ] Treemap of the scan, with the review list beside it.
+- [x] Treemap of the scan (the space map).
+- [ ] Space map: keyboard navigation (arrows to move, Return to zoom, Escape to go up).
 - [ ] Clone-aware sizes: APFS clones share blocks (Bun and uv caches clone into projects),
       so "reclaimable" overstates them. Use the private-size attribute.
 - [ ] Duplicates: group by size, then partial and full BLAKE3 hashes; replace copies with

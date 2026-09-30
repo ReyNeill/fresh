@@ -38,21 +38,28 @@ struct Sidebar: View {
             SidebarRow(symbol: "folder", title: model.root.lastPathComponent, action: chooseFolder)
                 .help(tilde(model.root.path))
 
-            if model.review != nil {
+            if let review = model.review {
+                SectionLabel("Space")
+                SidebarRow(
+                    symbol: "square.grid.3x2",
+                    title: "Map",
+                    trailing: review.bytes.formattedBytes,
+                    selected: model.showingMap
+                ) { model.showingMap = true }
                 SectionLabel("Findings")
                 SidebarRow(
                     symbol: "tray.full",
                     title: "Everything",
                     trailing: total,
-                    selected: model.group == nil
-                ) { model.group = nil }
+                    selected: !model.showingMap && model.group == nil
+                ) { show(nil) }
                 ForEach(model.groups) { group in
                     SidebarRow(
                         symbol: group.rule.symbol,
                         title: group.rule.title,
                         trailing: group.total,
-                        selected: model.group == group.rule
-                    ) { model.group = group.rule }
+                        selected: !model.showingMap && model.group == group.rule
+                    ) { show(group.rule) }
                 }
             }
 
@@ -63,6 +70,11 @@ struct Sidebar: View {
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 12)
+    }
+
+    private func show(_ group: Rule?) {
+        model.showingMap = false
+        model.group = group
     }
 
     private var total: String {

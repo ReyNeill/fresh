@@ -23,7 +23,22 @@ Every token has a light and a dark value, and the app follows the system appeara
 | `primary`       | `#0D0D0D`          | `#ECECEC`          | primary button, checked boxes  |
 | `onPrimary`     | `#FFFFFF`          | `#0D0D0D`          | text and marks on `primary`    |
 
-Meaning colors, used only as small dots and icons:
+Space map fills, muted so labels stay readable and hatching shows through. Deeper tiles are
+drawn paler (100%, 72%, 55%, 42% opacity by depth) so nested folders read as boxes in boxes.
+
+| token          | light     | dark      | kind        |
+| -------------- | --------- | --------- | ----------- |
+| `mapCode`      | `#8FA9D6` | `#4A6A9E` | projects and repositories |
+| `mapGit`       | `#D99A9A` | `#8C4A4A` | `.git` folders |
+| `mapCache`     | `#E2C58A` | `#8C7340` | caches      |
+| `mapToolchain` | `#96C7A4` | `#4F805C` | toolchains and SDKs |
+| `mapSynced`    | `#8FCACF` | `#46807F` | iCloud and cloud drives |
+| `mapMedia`     | `#B9A0DA` | `#6E579A` | photos, video, music |
+| `mapDocuments` | `#CBC6BC` | `#6F6A60` | Documents, Desktop, Downloads |
+| `mapApps`      | `#AAB6C4` | `#5A6675` | app data    |
+| `mapOther`     | `#D7D7D7` | `#4A4A4A` | everything else |
+
+Meaning colors, used only as small dots, icons and map outlines:
 
 | token   | light     | dark      | means                                |
 | ------- | --------- | --------- | ------------------------------------ |
@@ -59,6 +74,11 @@ Sizes and counts use monospaced digits so columns don't jitter as numbers change
 - **Main card** (`surface`, rounded top-left corner): one column, at most 700pt wide and
   centered. It opens with the folder at a glance (size, files, what's reclaimable by safety),
   then each group's rows. Rows fade out under the composer.
+- **Space map** (the sidebar's "Map"): the treemap takes the whole card. A trail of folders
+  sits top left (each step zooms back out), the kind legend top right, a line under the map
+  describes what's under the pointer, and the composer sits below. Clicking a folder zooms
+  into it. Findings are hatched and outlined in their safety color, over their children.
+  After a clean-up, a chip says the map is stale until the next scan.
 - **Composer**: floats at the bottom of the column. Its first line says in plain words what
   Clean up will do; below are the "Check remotes" chip, the selection count, and the one
   primary button. The status of the last clean-up or undo sits above it as a chip, with Undo.
