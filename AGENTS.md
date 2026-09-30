@@ -29,3 +29,16 @@ Fresh deletes things for people, so:
   `defaults write io.silixon.fresh root -string <path>`.
 - A rule fix ships with a test that fails without it.
 <!-- END:safety-rules -->
+
+<!-- BEGIN:design-rules -->
+# Design
+
+Read `DESIGN.md` before writing any UI code. Key points:
+- Modeled on ChatGPT's desktop app: a flat gray sidebar, one centered column on a white
+  card, and a floating composer holding the one action.
+- Colors come from `Palette` in `Theme.swift`. Color carries meaning (safety, outcomes),
+  never decoration. Don't hard-code colors in views.
+- Monochrome controls: the primary button and checked checkboxes are black in light mode and
+  near-white in dark mode.
+- No spinners or other continuously repainting animations; show progress as numbers.
+<!-- END:design-rules -->

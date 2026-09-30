@@ -36,9 +36,11 @@ open app/build/Fresh.app
 ```
 
 The app reviews your home folder (or one you pick), pre-selects what's regenerable or
-reversible, and cleans up after a confirmation, with Undo in the banner. It shares the CLI's
-journal, so either can undo the other's work. Give it Full Disk Access to include other apps'
-data; local builds are ad-hoc signed, so the grant has to be re-added after each rebuild.
+reversible, and cleans up after a confirmation. Undo sits in the status chip after a
+clean-up and in the Fresh menu. The app and the CLI share one journal, but macOS lets only the
+process that moved something to the Trash, or one with Full Disk Access, move it back out.
+Give the app Full Disk Access to include other apps' data too; local builds are ad-hoc signed,
+so the grant has to be re-added after each rebuild.
 
 ## Layout
 
