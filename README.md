@@ -43,7 +43,8 @@ open app/build/Fresh.app
 
 The app reviews your home folder (or one you pick), pre-selects what's regenerable or
 reversible, and cleans up after a confirmation. Its space map shows the whole folder as a
-treemap, colored by kind of data, with what can go hatched. Undo sits in the status chip after a
+treemap, colored by kind of data, with what can go hatched. Right-click an app's cache to
+exclude it; Settings (⌘,) lists everything excluded, and the CLI honors the same list. Undo sits in the status chip after a
 clean-up and in the Fresh menu. The app and the CLI share one journal, but macOS lets only the
 process that moved something to the Trash, or one with Full Disk Access, move it back out.
 Give the app Full Disk Access to include other apps' data too.

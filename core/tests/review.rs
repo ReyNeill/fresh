@@ -66,6 +66,23 @@ fn caches_of_running_programs_need_review() {
 }
 
 #[test]
+fn excluded_paths_are_never_suggested() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    write(&root.join("Library/Caches/com.example.chat/blob"));
+    write(&root.join("Library/Caches/com.example.notes/blob"));
+    write(&root.join("Library/Caches/com.example.notes/Cache_Data/blob"));
+
+    let scan = scan(&root, &ScanOptions::default()).unwrap();
+    let excluded = vec![root.join("Library/Caches/com.example.notes")];
+    let opts = ReviewOptions { home: root.clone(), min_bytes: 0, excluded, ..ReviewOptions::default() };
+
+    let found: Vec<_> =
+        review(&scan, &opts).findings.iter().map(|f| f.path.strip_prefix(&root).unwrap().to_owned()).collect();
+    assert_eq!(found, [Path::new("Library/Caches/com.example.chat").to_path_buf()]);
+}
+
+#[test]
 fn git_findings_count_work_merged_into_any_long_lived_branch() {
     let fx = common::fixture();
     // Something is working inside `wt-busy`, so it's in use however finished it looks.

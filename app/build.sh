@@ -22,7 +22,8 @@ xcodebuild -create-xcframework -library target/release/libfresh_ffi.a \
   -headers "$generated/include" -output "$generated/FreshCoreFFI.xcframework" >/dev/null
 
 swift build -c release --package-path "$app"
-bundle="$app/build/Fresh.app"
+# FRESH_BUNDLE builds somewhere else, so checks never replace the app you're running.
+bundle="${FRESH_BUNDLE:-$app/build/Fresh.app}"
 rm -rf "$bundle" && mkdir -p "$bundle/Contents/MacOS"
 cp "$(swift build -c release --package-path "$app" --show-bin-path)/Fresh" "$bundle/Contents/MacOS/"
 cp "$app/Info.plist" "$bundle/Contents/"

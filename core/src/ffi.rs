@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::apply::{self, Applied, Journal, Undone};
+use crate::settings::Settings;
 use crate::treemap::{Atlas, SpaceMap};
 use crate::{Finding, Joint, ReviewOptions, Scan, ScanOptions};
 
@@ -74,8 +75,10 @@ impl Reviewer {
         self.entries_seen.store(0, Ordering::Relaxed);
         let opts = ScanOptions { progress: Some(self.entries_seen.clone()), ..ScanOptions::default() };
         let scan = crate::scan(&root, &opts)?;
-        let crate::Review { findings, joints } =
-            crate::review(&scan, &ReviewOptions { fetch, ..ReviewOptions::default() });
+        // A broken settings file shouldn't block reviews; the Settings window reports it.
+        let excluded = Settings::load().map(|s| s.excluded).unwrap_or_default();
+        let opts = ReviewOptions { fetch, excluded, ..ReviewOptions::default() };
+        let crate::Review { findings, joints } = crate::review(&scan, &opts);
         let review = Review {
             root: scan.root.clone(),
             bytes: scan.node(0).bytes,
@@ -102,6 +105,28 @@ impl Reviewer {
 #[uniffi::export]
 pub fn home_folder() -> PathBuf {
     crate::home()
+}
+
+/// Paths reviews never suggest, as saved in settings.
+#[uniffi::export]
+pub fn excluded_paths() -> Result<Vec<PathBuf>, FreshError> {
+    Ok(Settings::load()?.excluded)
+}
+
+/// Stops suggesting `path` and anything inside it, from the next review on.
+#[uniffi::export]
+pub fn exclude(path: PathBuf) -> Result<(), FreshError> {
+    let mut settings = Settings::load()?;
+    settings.exclude(&path);
+    Ok(settings.save()?)
+}
+
+/// Lets reviews suggest `path` again.
+#[uniffi::export]
+pub fn stop_excluding(path: PathBuf) -> Result<(), FreshError> {
+    let mut settings = Settings::load()?;
+    settings.stop_excluding(&path);
+    Ok(settings.save()?)
 }
 
 /// Space applying `findings` together frees, counting nested ones once and the joint savings

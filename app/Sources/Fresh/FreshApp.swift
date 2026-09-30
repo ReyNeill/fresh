@@ -26,5 +26,9 @@ struct FreshApp: App {
                     .disabled(model.isScanning || model.busy)
             }
         }
+
+        Settings {
+            SettingsView().environment(model)
+        }
     }
 }

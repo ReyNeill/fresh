@@ -12,6 +12,7 @@ struct Sidebar: View {
             Menu {
                 Button("Choose Folder…", action: chooseFolder)
                 Button("Review Home Folder") { Task { await model.choose(URL(filePath: homeFolder())) } }
+                SettingsLink { Text("Settings…") }
                 Divider()
                 Button("Undo Last Clean-Up") { Task { await model.undo() } }
                     .disabled(model.busy)

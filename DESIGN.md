@@ -83,6 +83,10 @@ Sizes and counts use monospaced digits so columns don't jitter as numbers change
   Clean up will do; below are the "Check remotes" chip, the selection count, and the one
   primary button. The status of the last clean-up or undo sits above it as a chip, with Undo.
 
+- **Settings** (⌘,, or "Settings…" in the Fresh menu): one pane on `surface`. A 15 semibold
+  title, one line of explanation, the list in a card (folder icon, name, location, a Remove
+  chip), and a footnote on when changes apply.
+
 ## Components
 
 - **Finding row**: checkbox, then the name (13 medium) with its location (tertiary, truncated
