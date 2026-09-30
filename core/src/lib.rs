@@ -12,6 +12,7 @@ mod rules;
 pub mod scan;
 mod sys;
 pub mod trash;
+pub mod treemap;
 
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};

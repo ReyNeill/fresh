@@ -2,11 +2,12 @@
 
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::apply::{self, Applied, Journal, Undone};
-use crate::{Finding, ReviewOptions, ScanOptions};
+use crate::treemap::{Atlas, SpaceMap};
+use crate::{Finding, ReviewOptions, Scan, ScanOptions};
 
 uniffi::custom_type!(PathBuf, String, {
     remote,
@@ -47,10 +48,11 @@ pub struct Review {
     pub findings: Vec<Finding>,
 }
 
-/// Runs reviews and reports progress while one runs.
+/// Runs reviews, reports progress while one runs, and keeps the last scan for the space map.
 #[derive(Default, uniffi::Object)]
 pub struct Reviewer {
     entries_seen: Arc<AtomicU64>,
+    last: Mutex<Option<(Scan, Atlas)>>,
 }
 
 #[uniffi::export]
@@ -72,14 +74,25 @@ impl Reviewer {
         let opts = ScanOptions { progress: Some(self.entries_seen.clone()), ..ScanOptions::default() };
         let scan = crate::scan(&root, &opts)?;
         let findings = crate::review(&scan, &ReviewOptions { fetch, ..ReviewOptions::default() });
-        Ok(Review {
+        let review = Review {
             root: scan.root.clone(),
             bytes: scan.node(0).bytes,
             files: scan.stats.files,
             seconds: scan.stats.elapsed.as_secs_f64(),
             needs_full_disk_access: scan.stats.needs_full_disk_access.clone(),
             findings,
-        })
+        };
+        let atlas = Atlas::new(&scan, &review.findings);
+        *self.last.lock().unwrap() = Some((scan, atlas));
+        Ok(review)
+    }
+
+    /// The last review's folder `node` (its root when `None`) as a treemap in a `width` ×
+    /// `height` box, `depth` levels deep. `None` before the first review finishes.
+    pub fn space_map(&self, node: Option<u32>, width: f64, height: f64, depth: u32) -> Option<SpaceMap> {
+        let last = self.last.lock().unwrap();
+        let (scan, atlas) = last.as_ref()?;
+        Some(atlas.map(scan, node, width, height, depth))
     }
 }
 
